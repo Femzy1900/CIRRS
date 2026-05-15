@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { Lock, Loader2, ArrowLeft, CheckCircle2 } from 'lucide-react';
+import { Lock, CheckCircle2, ArrowLeft, ShieldCheck } from 'lucide-react';
 import useAuthStore from '../store/useAuthStore';
 
 const ResetPassword = () => {
@@ -31,7 +31,7 @@ const ResetPassword = () => {
       setIsSuccess(true);
       setTimeout(() => {
         navigate('/login');
-      }, 3000);
+      }, 4000);
     } catch (err) {
       // Error is handled by store
     }
@@ -39,26 +39,29 @@ const ResetPassword = () => {
 
   if (isSuccess) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50 px-4 sm:px-6 lg:px-8">
-        <div className="max-w-md w-full text-center space-y-8 bg-white p-10 rounded-2xl shadow-xl">
+      <div className="min-h-[80vh] flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 relative">
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-brand-blue/20 rounded-full blur-[120px] -z-10"></div>
+        
+        <div className="max-w-md w-full text-center space-y-8 glass-card p-12 rounded-[3rem] animate-fade-in border-white/10">
           <div className="flex justify-center">
-            <div className="bg-green-100 p-3 rounded-full">
-              <CheckCircle2 className="h-12 w-12 text-green-600" />
+            <div className="bg-brand-gold/10 p-4 rounded-full border border-brand-gold/20 shadow-2xl shadow-brand-gold/5">
+              <CheckCircle2 className="h-12 w-12 text-brand-gold" />
             </div>
           </div>
           <div>
-            <h2 className="text-3xl font-bold text-slate-900">Password Reset!</h2>
-            <p className="mt-4 text-slate-600">
-              Your password has been successfully updated. You will be redirected to the login page in a few seconds.
+            <h2 className="text-4xl font-black text-white tracking-tighter leading-tight">Password <br /><span className="text-brand-gold">Updated!</span></h2>
+            <p className="mt-6 text-sm text-slate-400 font-medium leading-relaxed">
+              Your password has been successfully reset. <br />
+              Redirecting you to login in a few seconds...
             </p>
           </div>
-          <div className="pt-4">
+          <div className="pt-6">
             <Link
               to="/login"
-              className="inline-flex items-center text-indigo-600 hover:text-indigo-500 font-medium transition-colors"
+              className="inline-flex items-center gap-2 text-xs font-black uppercase tracking-[0.2em] text-brand-gold hover:text-amber-300 transition-all group"
             >
-              <ArrowLeft className="mr-2 h-4 w-4" />
-              Go to Login now
+              <ArrowLeft className="group-hover:-translate-x-1 transition-transform" size={14} />
+              Go to Login
             </Link>
           </div>
         </div>
@@ -67,34 +70,39 @@ const ResetPassword = () => {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-50 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-md w-full space-y-8 bg-white p-10 rounded-2xl shadow-xl">
-        <div className="text-center">
-          <h2 className="text-3xl font-extrabold text-slate-900">Reset Password</h2>
-          <p className="mt-2 text-sm text-slate-600">
-            Please enter your new password below.
+    <div className="min-h-[80vh] flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 relative">
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-brand-blue/20 rounded-full blur-[120px] -z-10"></div>
+      
+      <div className="max-w-md w-full space-y-8 glass-card p-12 rounded-[3rem] animate-fade-in border-white/10">
+        <div>
+          <div className="flex justify-between items-start mb-10">
+            <Link to="/login" className="inline-flex items-center gap-2 text-xs font-black uppercase tracking-[0.2em] text-slate-500 hover:text-brand-gold transition-all group">
+              <ArrowLeft size={14} className="group-hover:-translate-x-1 transition-transform" />
+              Cancel
+            </Link>
+            <div className="p-3 bg-brand-blue/40 rounded-2xl border border-white/5 backdrop-blur-md">
+              <ShieldCheck size={24} className="text-brand-gold" />
+            </div>
+          </div>
+          <h2 className="text-4xl font-black text-white tracking-tighter leading-tight">Create New <br /><span className="text-brand-gold">Password</span></h2>
+          <p className="mt-4 text-sm text-slate-400 font-medium">
+            Choose a strong password to secure your account.
           </p>
         </div>
 
         {(error || passError) && (
-          <div className="bg-red-50 border-l-4 border-red-400 p-4 rounded-md">
-            <p className="text-sm text-red-700">{error || passError}</p>
+          <div className="bg-rose-500/10 border border-rose-500/20 p-4 rounded-2xl">
+            <p className="text-[10px] text-rose-400 font-black uppercase tracking-wider text-center">{error || passError}</p>
           </div>
         )}
 
-        <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
-          <div className="space-y-4">
+        <form className="mt-10 space-y-8" onSubmit={handleSubmit}>
+          <div className="space-y-6">
             <div>
-              <label htmlFor="password" name="password" className="block text-sm font-medium text-slate-700 mb-1">
-                New Password
-              </label>
+              <label className="block text-[10px] font-black text-brand-gold uppercase tracking-[0.2em] mb-3 px-1">New Password</label>
               <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Lock className="h-5 w-5 text-slate-400" />
-                </div>
+                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
                 <input
-                  id="password"
-                  name="password"
                   type="password"
                   required
                   value={password}
@@ -103,23 +111,17 @@ const ResetPassword = () => {
                     if (error) setError(null);
                     setPassError('');
                   }}
-                  className="appearance-none relative block w-full px-10 py-3 border border-slate-300 placeholder-slate-400 text-slate-900 rounded-lg focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm transition-all"
+                  className="input-field pl-12"
                   placeholder="Minimum 6 characters"
                 />
               </div>
             </div>
 
             <div>
-              <label htmlFor="confirm-password" name="confirm-password" className="block text-sm font-medium text-slate-700 mb-1">
-                Confirm New Password
-              </label>
+              <label className="block text-[10px] font-black text-brand-gold uppercase tracking-[0.2em] mb-3 px-1">Confirm New Password</label>
               <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Lock className="h-5 w-5 text-slate-400" />
-                </div>
+                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
                 <input
-                  id="confirm-password"
-                  name="confirm-password"
                   type="password"
                   required
                   value={confirmPassword}
@@ -127,8 +129,8 @@ const ResetPassword = () => {
                     setConfirmPassword(e.target.value);
                     setPassError('');
                   }}
-                  className="appearance-none relative block w-full px-10 py-3 border border-slate-300 placeholder-slate-400 text-slate-900 rounded-lg focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm transition-all"
-                  placeholder="Repeat your password"
+                  className="input-field pl-12"
+                  placeholder="Repeat new password"
                 />
               </div>
             </div>
@@ -138,12 +140,15 @@ const ResetPassword = () => {
             <button
               type="submit"
               disabled={loading}
-              className="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-semibold rounded-lg text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-md hover:shadow-lg"
+              className="btn-accent w-full py-5 flex items-center justify-center gap-3 text-sm uppercase tracking-[0.25em] font-black disabled:opacity-70 shadow-2xl shadow-brand-gold/10"
             >
               {loading ? (
-                <Loader2 className="animate-spin h-5 w-5" />
+                <div className="w-5 h-5 border-2 border-brand-blue/30 border-t-brand-blue rounded-full animate-spin"></div>
               ) : (
-                'Update Password'
+                <>
+                  <span>Update Password</span>
+                  <CheckCircle2 size={20} />
+                </>
               )}
             </button>
           </div>

@@ -8,10 +8,11 @@ const nodemailer = require('nodemailer');
 // @access  Public
 exports.register = async (req, res, next) => {
   try {
-    const { username, email, password } = req.body;
+    const { fullName, username, email, password } = req.body;
 
     // Create user
     const user = await User.create({
+      fullName,
       username,
       email,
       password,
@@ -201,6 +202,7 @@ const sendTokenResponse = (user, statusCode, res) => {
     token,
     user: {
       id: user._id,
+      fullName: user.fullName,
       username: user.username,
       email: user.email,
       role: user.role,

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Mail, ArrowLeft, Loader2, CheckCircle2 } from 'lucide-react';
+import { Mail, ArrowLeft, CheckCircle2, Send } from 'lucide-react';
 import useAuthStore from '../store/useAuthStore';
 
 const ForgotPassword = () => {
@@ -22,26 +22,29 @@ const ForgotPassword = () => {
 
   if (isSubmitted) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50 px-4 sm:px-6 lg:px-8">
-        <div className="max-w-md w-full text-center space-y-8 bg-white p-10 rounded-2xl shadow-xl">
+      <div className="min-h-[80vh] flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 relative">
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-brand-blue/20 rounded-full blur-[120px] -z-10"></div>
+        
+        <div className="max-w-md w-full text-center space-y-8 glass-card p-12 rounded-[3rem] animate-fade-in border-white/10">
           <div className="flex justify-center">
-            <div className="bg-green-100 p-3 rounded-full">
-              <CheckCircle2 className="h-12 w-12 text-green-600" />
+            <div className="bg-brand-gold/10 p-4 rounded-full border border-brand-gold/20 shadow-2xl shadow-brand-gold/5">
+              <CheckCircle2 className="h-12 w-12 text-brand-gold" />
             </div>
           </div>
           <div>
-            <h2 className="text-3xl font-bold text-slate-900">Check your email</h2>
-            <p className="mt-4 text-slate-600">
-              We've sent a password reset link to <span className="font-semibold">{email}</span>. 
+            <h2 className="text-4xl font-black text-white tracking-tighter leading-tight">Check your <br /><span className="text-brand-gold">Inbox</span></h2>
+            <p className="mt-6 text-sm text-slate-400 font-medium leading-relaxed">
+              We've sent a password reset link to <br />
+              <span className="text-white font-bold">{email}</span>. 
               Please check your inbox and follow the instructions.
             </p>
           </div>
-          <div className="pt-4">
+          <div className="pt-6">
             <Link
               to="/login"
-              className="inline-flex items-center text-indigo-600 hover:text-indigo-500 font-medium transition-colors"
+              className="inline-flex items-center gap-2 text-xs font-black uppercase tracking-[0.2em] text-brand-gold hover:text-amber-300 transition-all group"
             >
-              <ArrowLeft className="mr-2 h-4 w-4" />
+              <ArrowLeft className="group-hover:-translate-x-1 transition-transform" size={14} />
               Back to Login
             </Link>
           </div>
@@ -51,30 +54,34 @@ const ForgotPassword = () => {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-50 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-md w-full space-y-8 bg-white p-10 rounded-2xl shadow-xl">
-        <div className="text-center">
-          <h2 className="text-3xl font-extrabold text-slate-900">Forgot Password?</h2>
-          <p className="mt-2 text-sm text-slate-600">
-            No worries, we'll send you reset instructions.
+    <div className="min-h-[80vh] flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 relative">
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-brand-blue/20 rounded-full blur-[120px] -z-10"></div>
+      
+      <div className="max-w-md w-full space-y-8 glass-card p-12 rounded-[3rem] animate-fade-in border-white/10">
+        <div>
+          <Link to="/login" className="inline-flex items-center gap-2 text-xs font-black uppercase tracking-[0.2em] text-slate-500 hover:text-brand-gold mb-10 transition-all group">
+            <ArrowLeft size={14} className="group-hover:-translate-x-1 transition-transform" />
+            Back to Login
+          </Link>
+          <h2 className="text-4xl font-black text-white tracking-tighter leading-tight">Reset <br /><span className="text-brand-gold">Password</span></h2>
+          <p className="mt-4 text-sm text-slate-400 font-medium">
+            Don't worry! Enter your email and we'll send you reset instructions.
           </p>
         </div>
 
         {error && (
-          <div className="bg-red-50 border-l-4 border-red-400 p-4 rounded-md">
-            <p className="text-sm text-red-700">{error}</p>
+          <div className="bg-rose-500/10 border border-rose-500/20 p-4 rounded-2xl">
+            <p className="text-[10px] text-rose-400 font-black uppercase tracking-wider text-center">{error}</p>
           </div>
         )}
 
-        <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
+        <form className="mt-10 space-y-8" onSubmit={handleSubmit}>
           <div>
-            <label htmlFor="email" className="block text-sm font-medium text-slate-700 mb-1">
-              Email address
+            <label htmlFor="email" className="block text-[10px] font-black text-brand-gold uppercase tracking-[0.2em] mb-3 px-1">
+              Email Address
             </label>
             <div className="relative">
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <Mail className="h-5 w-5 text-slate-400" />
-              </div>
+              <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
               <input
                 id="email"
                 name="email"
@@ -86,8 +93,8 @@ const ForgotPassword = () => {
                   setEmail(e.target.value);
                   if (error) setError(null);
                 }}
-                className="appearance-none relative block w-full px-10 py-3 border border-slate-300 placeholder-slate-400 text-slate-900 rounded-lg focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm transition-all"
-                placeholder="Enter your email"
+                className="input-field pl-12"
+                placeholder="student@university.edu"
               />
             </div>
           </div>
@@ -96,26 +103,26 @@ const ForgotPassword = () => {
             <button
               type="submit"
               disabled={loading}
-              className="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-semibold rounded-lg text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-md hover:shadow-lg"
+              className="btn-accent w-full py-5 flex items-center justify-center gap-3 text-sm uppercase tracking-[0.25em] font-black disabled:opacity-70 shadow-2xl shadow-brand-gold/10"
             >
               {loading ? (
-                <Loader2 className="animate-spin h-5 w-5" />
+                <div className="w-5 h-5 border-2 border-brand-blue/30 border-t-brand-blue rounded-full animate-spin"></div>
               ) : (
-                'Reset Password'
+                <>
+                  <span>Send Reset Link</span>
+                  <Send size={18} />
+                </>
               )}
             </button>
           </div>
-
-          <div className="text-center mt-4">
-            <Link
-              to="/login"
-              className="inline-flex items-center text-sm font-medium text-indigo-600 hover:text-indigo-500 transition-colors"
-            >
-              <ArrowLeft className="mr-2 h-4 w-4" />
-              Back to Login
-            </Link>
-          </div>
         </form>
+
+        <p className="text-center text-xs text-slate-500 font-bold uppercase tracking-widest pt-4">
+          Remember your password?{' '}
+          <Link to="/login" className="text-brand-gold hover:text-amber-300 transition-colors border-b-2 border-brand-gold/20 pb-0.5 ml-1">
+            Sign In
+          </Link>
+        </p>
       </div>
     </div>
   );

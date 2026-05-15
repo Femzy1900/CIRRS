@@ -6,6 +6,11 @@ import { Mail, Lock, User, UserPlus, ArrowLeft, ShieldCheck } from 'lucide-react
 import useAuthStore from '../store/useAuthStore';
 
 const schema = z.object({
+  fullName: z.string()
+    .min(2, 'Full name must be at least 2 characters')
+    .refine(val => val.trim().split(/\s+/).length >= 2, {
+      message: 'Please enter both your first and last name'
+    }),
   username: z.string().min(2, 'Username must be at least 2 characters'),
   email: z.string().email('Invalid email address'),
   password: z.string().min(6, 'Password must be at least 6 characters'),
@@ -59,6 +64,21 @@ export default function Register() {
         )}
         
         <form className="mt-10 grid grid-cols-1 md:grid-cols-2 gap-8" onSubmit={handleSubmit(onSubmit)}>
+          <div className="md:col-span-2">
+            <label className="block text-[10px] font-black text-brand-gold uppercase tracking-[0.2em] mb-3 px-1">Full Name</label>
+            <div className="relative">
+              <User className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
+              <input
+                {...register('fullName')}
+                type="text"
+                onChange={() => { if (error) setError(null); }}
+                className="input-field pl-12"
+                placeholder="e.g. John Doe"
+              />
+            </div>
+            {errors.fullName && <p className="mt-2 text-[10px] text-rose-400 px-1 font-black uppercase tracking-wider">{errors.fullName.message}</p>}
+          </div>
+
           <div className="md:col-span-2">
             <label className="block text-[10px] font-black text-brand-gold uppercase tracking-[0.2em] mb-3 px-1">Username</label>
             <div className="relative">

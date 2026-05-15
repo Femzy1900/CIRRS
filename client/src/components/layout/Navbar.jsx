@@ -3,7 +3,7 @@ import { Search, Bell, User, PlusCircle, LogIn } from 'lucide-react';
 import useAuthStore from '../../store/useAuthStore';
 
 export default function Navbar() {
-  const { isAuthenticated, user, clearAuth } = useAuthStore();
+  const { isAuthenticated, user, logout } = useAuthStore();
 
   return (
     <nav className="sticky top-0 z-50 bg-[#020617]/80 backdrop-blur-xl border-b border-white/5">
@@ -48,12 +48,12 @@ export default function Navbar() {
                 <Link to="/dashboard" className="hidden lg:block nav-link text-sm uppercase tracking-widest font-black">Dashboard</Link>
                 <Link to="/profile" className="flex items-center gap-3 p-1.5 hover:bg-white/5 rounded-2xl transition-all border border-transparent hover:border-white/5 pr-4">
                   <div className="w-10 h-10 bg-gradient-to-br from-brand-blue to-brand-blue-dark rounded-xl flex items-center justify-center text-brand-gold font-black border border-white/10 shadow-xl">
-                    {user?.name?.charAt(0) || 'U'}
+                    {user?.fullName?.charAt(0) || user?.username?.charAt(0) || 'U'}
                   </div>
-                  <span className="text-sm font-bold text-white hidden sm:block">{user?.name?.split(' ')[0]}</span>
+                  <span className="text-sm font-bold text-white hidden sm:block">{user?.fullName || user?.username}</span>
                 </Link>
                 <button 
-                  onClick={clearAuth}
+                  onClick={logout}
                   className="hidden md:block text-xs font-black uppercase tracking-widest text-slate-500 hover:text-rose-500 transition-colors"
                 >
                   Logout

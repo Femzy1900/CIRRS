@@ -1,7 +1,7 @@
 const User = require('../models/User');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
-const nodemailer = require('nodemailer');
+const sendEmail = require('../utils/sendEmail');
 
 // @desc    Register user
 // @route   POST /api/auth/register
@@ -18,7 +18,80 @@ exports.register = async (req, res, next) => {
       password,
     });
 
-    sendTokenResponse(user, 201, res);
+    // Get verification token
+    const verificationToken = user.getVerificationToken();
+
+    await user.save({ validateBeforeSave: false });
+
+    // Create verification url
+    const verificationUrl = `${process.env.CLIENT_URL || 'http://localhost:5173'}/verify-email/${verificationToken}`;
+
+    const message = `Welcome to CIRS, ${fullName}! \n\n Please verify your email by clicking the link below: \n\n ${verificationUrl}`;
+
+    try {
+      await sendEmail({
+        email: user.email,
+        subject: 'Email Verification - CIRS',
+        message,
+        html: `
+          <h1>Verify your email</h1>
+          <p>Hi ${fullName},</p>
+          <p>Thank you for joining CIRS. Please click the button below to verify your email address:</p>
+          <a href="${verificationUrl}" style="background-color: #002147; color: #FFD700; padding: 10px 20px; text-decoration: none; border-radius: 5px; font-weight: bold;">Verify Email</a>
+          <p>If you did not request this, please ignore this email.</p>
+        `,
+      });
+
+      res.status(201).json({
+        success: true,
+        message: 'Verification email sent. Please check your inbox.',
+      });
+    } catch (err) {
+      console.log(err);
+      user.verificationToken = undefined;
+      user.verificationExpire = undefined;
+
+      await user.save({ validateBeforeSave: false });
+
+      res.status(500);
+      throw new Error('Verification email could not be sent');
+    }
+  } catch (err) {
+    next(err);
+  }
+};
+
+// @desc    Verify email
+// @route   GET /api/auth/verifyemail/:verificationtoken
+// @access  Public
+exports.verifyEmail = async (req, res, next) => {
+  try {
+    // Get hashed token
+    const verificationToken = crypto
+      .createHash('sha256')
+      .update(req.params.verificationtoken)
+      .digest('hex');
+
+    const user = await User.findOne({
+      verificationToken,
+      verificationExpire: { $gt: Date.now() },
+    });
+
+    if (!user) {
+      res.status(400);
+      throw new Error('Invalid or expired verification token');
+    }
+
+    // Set user to verified
+    user.isVerified = true;
+    user.verificationToken = undefined;
+    user.verificationExpire = undefined;
+    await user.save();
+
+    res.status(200).json({
+      success: true,
+      message: 'Email verified successfully. You can now log in.',
+    });
   } catch (err) {
     next(err);
   }
@@ -43,6 +116,12 @@ exports.login = async (req, res, next) => {
     if (!user) {
       res.status(401);
       throw new Error('Invalid credentials');
+    }
+
+    // Check if user is verified
+    if (!user.isVerified) {
+      res.status(401);
+      throw new Error('Please verify your email to log in');
     }
 
     // Check if password matches
@@ -113,21 +192,10 @@ exports.forgotPassword = async (req, res, next) => {
     const message = `You are receiving this email because you (or someone else) has requested the reset of a password. Please make a PUT request to: \n\n ${resetUrl}`;
 
     try {
-      // Setup email transporter (using nodemailer)
-      const transporter = nodemailer.createTransport({
-        host: process.env.SMTP_HOST,
-        port: process.env.SMTP_PORT,
-        auth: {
-          user: process.env.SMTP_EMAIL,
-          pass: process.env.SMTP_PASSWORD,
-        },
-      });
-
-      await transporter.sendMail({
-        from: `${process.env.FROM_NAME} <${process.env.FROM_EMAIL}>`,
-        to: user.email,
+      await sendEmail({
+        email: user.email,
         subject: 'Password reset token',
-        text: message,
+        message,
       });
 
       res.status(200).json({ success: true, data: 'Email sent' });

@@ -30,6 +30,11 @@ const authApi = {
     const response = await axiosInstance.put(`/auth/resetpassword/${token}`, { password });
     return response.data;
   },
+
+  verifyEmail: async (token) => {
+    const response = await axiosInstance.get(`/auth/verifyemail/${token}`);
+    return response.data;
+  },
 };
 
 export default authApi;

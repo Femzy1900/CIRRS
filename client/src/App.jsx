@@ -14,6 +14,7 @@ import SubmitClaim from './pages/SubmitClaim';
 import ItemDetail from './pages/ItemDetail';
 import ForgotPassword from './pages/ForgotPassword';
 import ResetPassword from './pages/ResetPassword';
+import VerifyEmail from './pages/VerifyEmail';
 import Navbar from './components/layout/Navbar';
 import Footer from './components/layout/Footer';
 import ProtectedRoute from './routes/ProtectedRoute';
@@ -41,6 +42,7 @@ function App() {
               <Route path="/register" element={<Register />} />
               <Route path="/forgot-password" element={<ForgotPassword />} />
               <Route path="/reset-password/:token" element={<ResetPassword />} />
+              <Route path="/verify-email/:token" element={<VerifyEmail />} />
             </Route>
 
             <Route path="/submit-claim/:id" element={<SubmitClaim />} />

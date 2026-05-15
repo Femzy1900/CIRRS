@@ -23,6 +23,8 @@ const schema = z.object({
 export default function Register() {
   const navigate = useNavigate();
   const { register: registerAction, loading, error, setError } = useAuthStore();
+  const [isSubmitted, setIsSubmitted] = useState(false);
+  const [userEmail, setUserEmail] = useState('');
   
   const { register, handleSubmit, formState: { errors } } = useForm({
     resolver: zodResolver(schema),
@@ -30,12 +32,46 @@ export default function Register() {
 
   const onSubmit = async (data) => {
     try {
+      setUserEmail(data.email);
       await registerAction(data);
-      navigate('/dashboard');
+      setIsSubmitted(true);
     } catch (err) {
       // Error is handled by store
     }
   };
+
+  if (isSubmitted) {
+    return (
+      <div className="min-h-[80vh] flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 relative">
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-brand-blue/20 rounded-full blur-[120px] -z-10"></div>
+        
+        <div className="max-w-md w-full text-center space-y-8 glass-card p-12 rounded-[3rem] animate-fade-in border-white/10">
+          <div className="flex justify-center">
+            <div className="bg-brand-gold/10 p-4 rounded-full border border-brand-gold/20 shadow-2xl shadow-brand-gold/5">
+              <Mail className="h-12 w-12 text-brand-gold" />
+            </div>
+          </div>
+          <div>
+            <h2 className="text-4xl font-black text-white tracking-tighter leading-tight">Verify your <br /><span className="text-brand-gold">Email</span></h2>
+            <p className="mt-6 text-sm text-slate-400 font-medium leading-relaxed">
+              We've sent a verification link to <br />
+              <span className="text-white font-bold">{userEmail}</span>. 
+              Please verify your email to activate your account.
+            </p>
+          </div>
+          <div className="pt-6">
+            <Link
+              to="/login"
+              className="inline-flex items-center gap-2 text-xs font-black uppercase tracking-[0.2em] text-brand-gold hover:text-amber-300 transition-all group"
+            >
+              <ArrowLeft className="group-hover:-translate-x-1 transition-transform" size={14} />
+              Back to Login
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-[80vh] flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 relative">

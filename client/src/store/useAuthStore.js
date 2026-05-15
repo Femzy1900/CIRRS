@@ -77,6 +77,19 @@ const useAuthStore = create(
         }
       },
 
+      verifyEmail: async (token) => {
+        set({ loading: true, error: null });
+        try {
+          const data = await authApi.verifyEmail(token);
+          set({ loading: false });
+          return data;
+        } catch (error) {
+          const message = error.response?.data?.message || 'Verification failed';
+          set({ error: message, loading: false });
+          throw error;
+        }
+      },
+
       checkAuth: async () => {
         if (!get().token) return;
         set({ loading: true });

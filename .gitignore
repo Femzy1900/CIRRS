@@ -1,2 +1,3 @@
 /TEXT
 node_modules
+.env

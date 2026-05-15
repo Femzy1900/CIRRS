@@ -6,7 +6,7 @@ import { Mail, Lock, User, UserPlus, ArrowLeft, ShieldCheck } from 'lucide-react
 import useAuthStore from '../store/useAuthStore';
 
 const schema = z.object({
-  name: z.string().min(2, 'Name must be at least 2 characters'),
+  username: z.string().min(2, 'Username must be at least 2 characters'),
   email: z.string().email('Invalid email address'),
   password: z.string().min(6, 'Password must be at least 6 characters'),
   confirmPassword: z.string().min(6, 'Confirm password must be at least 6 characters'),
@@ -17,20 +17,19 @@ const schema = z.object({
 
 export default function Register() {
   const navigate = useNavigate();
-  const { setAuth, setLoading, loading } = useAuthStore();
+  const { register: registerAction, loading, error, setError } = useAuthStore();
   
   const { register, handleSubmit, formState: { errors } } = useForm({
     resolver: zodResolver(schema),
   });
 
-  const onSubmit = (data) => {
-    setLoading(true);
-    // Simulate registration
-    setTimeout(() => {
-      setAuth({ name: data.name, email: data.email }, 'dummy-jwt-token');
-      setLoading(false);
+  const onSubmit = async (data) => {
+    try {
+      await registerAction(data);
       navigate('/dashboard');
-    }, 1500);
+    } catch (err) {
+      // Error is handled by store
+    }
   };
 
   return (
@@ -53,19 +52,26 @@ export default function Register() {
           </div>
         </div>
         
+        {error && (
+          <div className="bg-rose-500/10 border border-rose-500/20 p-4 rounded-2xl">
+            <p className="text-[10px] text-rose-400 font-black uppercase tracking-wider text-center">{error}</p>
+          </div>
+        )}
+        
         <form className="mt-10 grid grid-cols-1 md:grid-cols-2 gap-8" onSubmit={handleSubmit(onSubmit)}>
           <div className="md:col-span-2">
-            <label className="block text-[10px] font-black text-brand-gold uppercase tracking-[0.2em] mb-3 px-1">Full Name</label>
+            <label className="block text-[10px] font-black text-brand-gold uppercase tracking-[0.2em] mb-3 px-1">Username</label>
             <div className="relative">
               <User className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
               <input
-                {...register('name')}
+                {...register('username')}
                 type="text"
+                onChange={() => { if (error) setError(null); }}
                 className="input-field pl-12"
-                placeholder="Full Name"
+                placeholder="Unique username"
               />
             </div>
-            {errors.name && <p className="mt-2 text-[10px] text-rose-400 px-1 font-black uppercase tracking-wider">{errors.name.message}</p>}
+            {errors.username && <p className="mt-2 text-[10px] text-rose-400 px-1 font-black uppercase tracking-wider">{errors.username.message}</p>}
           </div>
 
           <div className="md:col-span-2">
@@ -75,6 +81,7 @@ export default function Register() {
               <input
                 {...register('email')}
                 type="email"
+                onChange={() => { if (error) setError(null); }}
                 className="input-field pl-12"
                 placeholder="student@university.edu"
               />
@@ -89,6 +96,7 @@ export default function Register() {
               <input
                 {...register('password')}
                 type="password"
+                onChange={() => { if (error) setError(null); }}
                 className="input-field pl-12"
                 placeholder="••••••••"
               />

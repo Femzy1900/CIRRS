@@ -12,20 +12,19 @@ const schema = z.object({
 
 export default function Login() {
   const navigate = useNavigate();
-  const { setAuth, setLoading, loading } = useAuthStore();
+  const { login, loading, error, setError } = useAuthStore();
   
   const { register, handleSubmit, formState: { errors } } = useForm({
     resolver: zodResolver(schema),
   });
 
-  const onSubmit = (data) => {
-    setLoading(true);
-    // Simulate login
-    setTimeout(() => {
-      setAuth({ name: 'Demo User', email: data.email }, 'dummy-jwt-token');
-      setLoading(false);
+  const onSubmit = async (data) => {
+    try {
+      await login(data);
       navigate('/dashboard');
-    }, 1500);
+    } catch (err) {
+      // Error is handled by store
+    }
   };
 
   return (
@@ -44,6 +43,12 @@ export default function Login() {
           </p>
         </div>
         
+        {error && (
+          <div className="bg-rose-500/10 border border-rose-500/20 p-4 rounded-2xl">
+            <p className="text-[10px] text-rose-400 font-black uppercase tracking-wider text-center">{error}</p>
+          </div>
+        )}
+
         <form className="mt-10 space-y-8" onSubmit={handleSubmit(onSubmit)}>
           <div className="space-y-6">
             <div>
@@ -53,6 +58,7 @@ export default function Login() {
                 <input
                   {...register('email')}
                   type="email"
+                  onChange={() => { if (error) setError(null); }}
                   className="input-field pl-12"
                   placeholder="student@university.edu"
                 />
@@ -67,6 +73,7 @@ export default function Login() {
                 <input
                   {...register('password')}
                   type="password"
+                  onChange={() => { if (error) setError(null); }}
                   className="input-field pl-12"
                   placeholder="••••••••"
                 />
@@ -80,7 +87,7 @@ export default function Login() {
               <input type="checkbox" className="h-4 w-4 bg-white/5 border-white/10 rounded-md cursor-pointer checked:bg-brand-gold transition-all" />
               <label className="ml-3 block text-xs text-slate-400 font-bold cursor-pointer">Remember me</label>
             </div>
-            <Link className="text-xs font-black uppercase tracking-widest text-brand-gold hover:text-amber-300 transition-colors">
+            <Link to="/forgot-password" title="Forgot Password" className="text-xs font-black uppercase tracking-widest text-brand-gold hover:text-amber-300 transition-colors">
               Forgot password?
             </Link>
           </div>

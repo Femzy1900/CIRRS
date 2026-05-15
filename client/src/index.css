@@ -1,0 +1,84 @@
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --font-primary: 'Outfit', sans-serif;
+  --font-secondary: 'Inter', sans-serif;
+  
+  --brand-primary: #002147; /* OAU Midnight Blue */
+  --brand-secondary: #001a38;
+  --brand-accent: #FFD700; /* OAU Gold */
+  
+  --bg-dark: #020617;
+  --card-dark: #0f172a;
+}
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+  
+  body {
+    @apply bg-[#020617] text-slate-200 selection:bg-amber-400/30 selection:text-amber-200 antialiased;
+    font-family: var(--font-secondary);
+    background-image: 
+      radial-gradient(at 0% 0%, rgba(0, 33, 71, 0.15) 0px, transparent 50%),
+      radial-gradient(at 100% 0%, rgba(255, 215, 0, 0.05) 0px, transparent 50%);
+    background-attachment: fixed;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-primary);
+    @apply text-white tracking-tight;
+  }
+}
+
+@layer components {
+  .glass-card {
+    @apply bg-slate-900/40 backdrop-blur-xl border border-white/10 shadow-2xl;
+  }
+  
+  .btn-primary {
+    @apply px-6 py-2.5 bg-gradient-to-r from-brand-blue to-brand-blue-light text-white font-semibold rounded-xl 
+    hover:shadow-lg hover:shadow-brand-blue/30 transition-all duration-300 active:scale-95 border border-white/10;
+  }
+  
+  .btn-accent {
+    @apply px-6 py-2.5 bg-gradient-to-r from-brand-gold to-amber-500 text-brand-blue-dark font-bold rounded-xl 
+    hover:shadow-lg hover:shadow-brand-gold/30 transition-all duration-300 active:scale-95;
+  }
+  
+  .btn-secondary {
+    @apply px-6 py-2.5 bg-slate-800/50 text-slate-200 border border-slate-700 font-medium rounded-xl 
+    hover:bg-slate-800 hover:border-slate-600 transition-all duration-300 active:scale-95 shadow-sm;
+  }
+
+  .nav-link {
+    @apply relative text-slate-400 font-medium hover:text-white transition-colors py-1;
+  }
+
+  .nav-link::after {
+    @apply content-[''] absolute bottom-0 left-0 w-0 h-0.5 bg-brand-gold transition-all duration-300;
+  }
+
+  .nav-link:hover::after {
+    @apply w-full;
+  }
+
+  .input-field {
+    @apply w-full px-4 py-3 bg-slate-900/50 border border-slate-800 rounded-xl focus:border-brand-gold focus:ring-1 focus:ring-brand-gold outline-none transition-all text-white placeholder:text-slate-500;
+  }
+}
+
+/* Custom Animations */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.6s ease-out forwards;
+}

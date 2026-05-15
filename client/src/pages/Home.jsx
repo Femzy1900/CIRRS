@@ -1,0 +1,161 @@
+import { useState } from 'react';
+import useItemStore from '../store/useItemStore';
+import ItemCard from '../components/items/ItemCard';
+import { Search, Filter, Plus, ArrowRight, ShieldCheck, Zap, Heart } from 'lucide-react';
+import { Link } from 'react-router-dom';
+
+export default function Home() {
+  const { filteredItems, setSearch, filterByType } = useItemStore();
+  const [activeFilter, setActiveFilter] = useState('all');
+
+  const handleFilter = (type) => {
+    setActiveFilter(type);
+    filterByType(type);
+  };
+
+  return (
+    <div className="space-y-32 pb-20 overflow-hidden">
+      {/* Hero Section */}
+      <section className="relative pt-16 lg:pt-24">
+        {/* Background Glows */}
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-[800px] bg-brand-blue/20 -z-10 rounded-full blur-[120px] opacity-60"></div>
+        <div className="absolute -top-40 -right-40 w-[500px] h-[500px] bg-brand-gold/5 -z-10 rounded-full blur-[100px]"></div>
+        
+        <div className="flex flex-col lg:flex-row items-center gap-20">
+          <div className="lg:w-3/5 space-y-10 text-center lg:text-left relative z-10">
+            <div className="inline-flex items-center gap-2 px-5 py-2.5 bg-brand-blue/40 border border-brand-blue-light/30 text-brand-gold rounded-full text-xs font-bold uppercase tracking-[0.2em] animate-fade-in backdrop-blur-md">
+              <ShieldCheck size={16} className="text-brand-gold" />
+              Verified Recovery System
+            </div>
+            
+            <h1 className="text-6xl lg:text-8xl font-black text-white leading-[1.1] tracking-tighter">
+              Lost it? <br />
+              <span className="text-transparent bg-clip-text bg-gradient-to-r from-brand-gold via-amber-400 to-yellow-600 drop-shadow-sm">
+                Recover it.
+              </span>
+            </h1>
+            
+            <p className="text-xl text-slate-400 leading-relaxed max-w-2xl mx-auto lg:mx-0 font-medium">
+              The official Campus Item Reporting and Recovery System. Bridging the gap between lost belongings and their rightful owners across the campus.
+            </p>
+            
+            <div className="flex flex-col sm:flex-row items-center gap-5 justify-center lg:justify-start pt-4">
+              <Link to="/report-lost" className="btn-accent flex items-center gap-3 group w-full sm:w-auto justify-center py-4 px-8 text-lg">
+                Report Lost Item
+                <Plus size={22} className="group-hover:rotate-90 transition-transform" />
+              </Link>
+              <Link to="/report-found" className="btn-secondary flex items-center gap-3 group w-full sm:w-auto justify-center py-4 px-8 text-lg border-white/10 bg-white/5 backdrop-blur-md">
+                I Found Something
+                <ArrowRight size={22} className="group-hover:translate-x-1 transition-transform" />
+              </Link>
+            </div>
+
+            <div className="flex items-center gap-12 pt-8 justify-center lg:justify-start">
+              <div className="flex flex-col">
+                <span className="text-3xl font-black text-white">1.2k+</span>
+                <span className="text-[10px] uppercase tracking-[0.25em] font-bold text-brand-gold/80">Items Found</span>
+              </div>
+              <div className="w-px h-12 bg-white/10"></div>
+              <div className="flex flex-col">
+                <span className="text-3xl font-black text-white">98%</span>
+                <span className="text-[10px] uppercase tracking-[0.25em] font-bold text-brand-gold/80">Success Rate</span>
+              </div>
+              <div className="w-px h-12 bg-white/10"></div>
+              <div className="flex flex-col">
+                <span className="text-3xl font-black text-white">24/7</span>
+                <span className="text-[10px] uppercase tracking-[0.25em] font-bold text-brand-gold/80">Support Team</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="lg:w-2/5 relative">
+             <div className="relative z-10 rounded-[3rem] overflow-hidden shadow-[0_0_50px_rgba(0,33,71,0.5)] border border-white/10 group">
+                <img 
+                  src="https://images.unsplash.com/photo-1541339907198-e08756ebafe1?auto=format&fit=crop&w=1200&q=80" 
+                  alt="Students on campus" 
+                  className="w-full h-[600px] object-cover group-hover:scale-110 transition-transform duration-1000"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-brand-blue via-brand-blue/20 to-transparent"></div>
+                <div className="absolute bottom-10 left-10 right-10 text-white backdrop-blur-sm bg-black/20 p-6 rounded-2xl border border-white/10">
+                   <p className="text-lg font-medium italic opacity-95 mb-3 leading-relaxed">"CIRRS made it so easy to get back my ID card within 24 hours."</p>
+                   <p className="font-bold text-brand-gold">Alex J., Student</p>
+                </div>
+             </div>
+             {/* Floating Glows */}
+             <div className="absolute -top-10 -right-10 w-48 h-48 bg-brand-gold/10 rounded-full blur-3xl animate-pulse"></div>
+             <div className="absolute -bottom-10 -left-10 w-56 h-56 bg-brand-blue/30 rounded-full blur-3xl animate-pulse delay-700"></div>
+          </div>
+        </div>
+      </section>
+
+      {/* Features Section */}
+      <section className="grid grid-cols-1 md:grid-cols-3 gap-10">
+        {[
+          { icon: <Zap className="text-brand-gold" />, title: 'Real-time Alerts', desc: 'Get notified immediately when an item matching your description is found in the system.' },
+          { icon: <ShieldCheck className="text-emerald-400" />, title: 'Verified Claims', desc: 'Our secure vetting process ensures items are returned to their rightful owners with proper verification.' },
+          { icon: <Heart className="text-rose-400" />, title: 'Community Driven', desc: 'Fostering a spirit of helpfulness by assisting fellow students recover lost valuables.' }
+        ].map((f, i) => (
+          <div key={i} className="glass-card p-10 rounded-[2.5rem] hover:-translate-y-3 transition-all duration-500 group border-white/5 hover:border-brand-gold/30 hover:shadow-brand-gold/5">
+            <div className="w-16 h-16 bg-brand-blue/50 rounded-2xl flex items-center justify-center mb-8 shadow-inner border border-white/5 group-hover:scale-110 transition-transform">
+              {f.icon}
+            </div>
+            <h3 className="text-2xl font-bold text-white mb-4 group-hover:text-brand-gold transition-colors">{f.title}</h3>
+            <p className="text-slate-400 leading-relaxed font-medium">{f.desc}</p>
+          </div>
+        ))}
+      </section>
+
+      {/* Items Section */}
+      <section className="space-y-16">
+        <div className="flex flex-col md:flex-row items-end justify-between gap-10">
+          <div className="space-y-4">
+            <h2 className="text-4xl lg:text-5xl font-black text-white">Recent Reports</h2>
+            <p className="text-slate-400 text-lg font-medium max-w-xl">Real-time feed of lost and found items across all campus locations and halls.</p>
+          </div>
+          
+          <div className="flex items-center gap-2 p-1.5 bg-white/5 backdrop-blur-md rounded-2xl border border-white/10">
+            {['all', 'lost', 'found'].map((type) => (
+              <button
+                key={type}
+                onClick={() => handleFilter(type)}
+                className={`px-8 py-3 rounded-xl text-sm font-bold capitalize transition-all ${
+                  activeFilter === type 
+                    ? 'bg-brand-gold text-brand-blue-dark shadow-xl scale-105' 
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                {type}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="relative">
+          <div className="absolute top-1/2 left-0 w-full h-px bg-white/5 -z-10"></div>
+          <div className="flex items-center gap-4 bg-[#020617] pr-8 w-fit mb-12">
+            <div className="p-3 bg-brand-gold rounded-xl text-brand-blue-dark shadow-lg shadow-brand-gold/20">
+              <Filter size={20} />
+            </div>
+            <span className="text-sm font-bold uppercase tracking-[0.3em] text-brand-gold/60">Live Database</span>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-10">
+          {filteredItems.map((item) => (
+            <ItemCard key={item.id} item={item} />
+          ))}
+        </div>
+
+        {filteredItems.length === 0 && (
+          <div className="text-center py-32 bg-white/5 rounded-[4rem] border-2 border-dashed border-white/10 backdrop-blur-sm">
+             <div className="w-24 h-24 bg-brand-blue/50 rounded-full flex items-center justify-center mx-auto mb-8 shadow-2xl border border-white/10">
+                <Search size={40} className="text-brand-gold/50" />
+             </div>
+             <h3 className="text-2xl font-bold text-white">No items found</h3>
+             <p className="text-slate-400 mt-3 text-lg font-medium">Try adjusting your search or filters to see more results.</p>
+          </div>
+        )}
+      </section>
+    </div>
+  );
+}

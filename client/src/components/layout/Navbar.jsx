@@ -46,6 +46,9 @@ export default function Navbar() {
                   <span className="absolute top-3 right-3 w-2.5 h-2.5 bg-brand-gold rounded-full border-2 border-[#020617] animate-pulse"></span>
                 </Link>
                 <Link to="/dashboard" className="hidden lg:block nav-link text-sm uppercase tracking-widest font-black">Dashboard</Link>
+                {user?.role === 'admin' && (
+                  <Link to="/admin" className="hidden lg:block nav-link text-sm uppercase tracking-widest font-black text-brand-gold hover:text-white transition-colors">Admin Panel</Link>
+                )}
                 <Link to="/profile" className="flex items-center gap-3 p-1.5 hover:bg-white/5 rounded-2xl transition-all border border-transparent hover:border-white/5 pr-4">
                   <div className="w-10 h-10 bg-gradient-to-br from-brand-blue to-brand-blue-dark rounded-xl flex items-center justify-center text-brand-gold font-black border border-white/10 shadow-xl">
                     {user?.fullName?.charAt(0) || user?.username?.charAt(0) || 'U'}

@@ -19,6 +19,8 @@ import Navbar from './components/layout/Navbar';
 import Footer from './components/layout/Footer';
 import ProtectedRoute from './routes/ProtectedRoute';
 import PublicRoute from './routes/PublicRoute';
+import AdminRoute from './routes/AdminRoute';
+import AdminDashboard from './pages/admin/AdminDashboard';
 
 function App() {
   const { checkAuth } = useAuthStore();
@@ -55,6 +57,11 @@ function App() {
               <Route path="/my-reports" element={<MyReports />} />
               <Route path="/notifications" element={<Notifications />} />
               <Route path="/profile" element={<Profile />} />
+            </Route>
+
+            {/* Admin Routes */}
+            <Route element={<AdminRoute />}>
+              <Route path="/admin" element={<AdminDashboard />} />
             </Route>
           </Routes>
         </main>

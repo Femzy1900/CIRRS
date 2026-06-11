@@ -20,6 +20,7 @@ import {
 import Button from '../../components/ui/Button';
 import Badge from '../../components/ui/Badge';
 import { toast } from 'sonner';
+import { useNavigate } from 'react-router-dom';
 
 export default function AdminDashboard() {
   const { 
@@ -35,7 +36,8 @@ export default function AdminDashboard() {
     deleteUser 
   } = useAdminStore();
 
-  const { items, fetchItems } = useItemStore(); // Load existing items
+  const { items, fetchItems, deleteItem } = useItemStore();
+  const navigate = useNavigate();
 
   const [activeTab, setActiveTab] = useState('overview');
   const [userSearch, setUserSearch] = useState('');
@@ -79,6 +81,26 @@ export default function AdminDashboard() {
             toast.success(`${name}'s account deleted.`);
           } catch (err) {
             toast.error(err.message || 'Failed to delete user');
+          }
+        }
+      },
+      cancel: { label: 'Cancel' }
+    });
+  };
+
+  // Handle admin item delete
+  const handleDeleteItem = (item) => {
+    const id = item._id || item.id;
+    toast.warning(`Delete report "${item.title}"?`, {
+      description: 'This action cannot be undone.',
+      action: {
+        label: 'Delete',
+        onClick: async () => {
+          try {
+            await deleteItem(id);
+            toast.success('Report deleted.');
+          } catch (err) {
+            toast.error(err.message || 'Failed to delete report.');
           }
         }
       },
@@ -436,12 +458,14 @@ export default function AdminDashboard() {
                       <td className="p-6 text-right">
                         <div className="flex items-center justify-end gap-3">
                           <button
+                            onClick={() => navigate(`/item/${item._id || item.id}`)}
                             className="p-2 text-slate-400 hover:text-brand-gold hover:bg-white/5 rounded-xl border border-transparent hover:border-white/5 transition-all"
                             title="View Report Details"
                           >
                             <Eye size={18} />
                           </button>
                           <button
+                            onClick={() => handleDeleteItem(item)}
                             className="p-2 text-slate-400 hover:text-rose-500 hover:bg-white/5 rounded-xl border border-transparent hover:border-white/5 transition-all"
                             title="Delete Report"
                           >

@@ -29,8 +29,7 @@ const useAuthStore = create(
         set({ loading: true, error: null });
         try {
           const data = await authApi.register(userData);
-          localStorage.setItem('token', data.token);
-          set({ user: data.user, token: data.token, isAuthenticated: true, loading: false });
+          set({ loading: false });
           return data;
         } catch (error) {
           const message = error.response?.data?.message || 'Registration failed';
@@ -87,6 +86,28 @@ const useAuthStore = create(
           const message = error.response?.data?.message || 'Verification failed';
           set({ error: message, loading: false });
           throw error;
+        }
+      },
+
+      updateProfile: async (profileData) => {
+        set({ loading: true, error: null });
+        try {
+          const data = await authApi.updateProfile(profileData);
+          set({ user: data.data, loading: false });
+          return data;
+        } catch (error) {
+          const message = error.response?.data?.message || 'Failed to update profile';
+          set({ error: message, loading: false });
+          throw error;
+        }
+      },
+
+      deleteAccount: async () => {
+        try {
+          await authApi.deleteAccount();
+        } finally {
+          localStorage.removeItem('token');
+          set({ user: null, token: null, isAuthenticated: false });
         }
       },
 

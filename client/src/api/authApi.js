@@ -35,6 +35,16 @@ const authApi = {
     const response = await axiosInstance.get(`/auth/verifyemail/${token}`);
     return response.data;
   },
+
+  updateProfile: async (profileData) => {
+    const response = await axiosInstance.put('/auth/updateprofile', profileData);
+    return response.data;
+  },
+
+  deleteAccount: async () => {
+    const response = await axiosInstance.delete('/auth/deleteaccount');
+    return response.data;
+  },
 };
 
 export default authApi;

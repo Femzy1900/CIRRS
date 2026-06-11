@@ -166,6 +166,53 @@ exports.getMe = async (req, res, next) => {
   }
 };
 
+// @desc    Update user profile
+// @route   PUT /api/auth/updateprofile
+// @access  Private
+exports.updateProfile = async (req, res, next) => {
+  try {
+    const allowedFields = ['fullName', 'phone', 'faculty', 'profileImage'];
+    const updates = {};
+    allowedFields.forEach(field => {
+      if (req.body[field] !== undefined) updates[field] = req.body[field];
+    });
+
+    const user = await User.findByIdAndUpdate(req.user.id, updates, {
+      new: true,
+      runValidators: true,
+    });
+
+    res.status(200).json({
+      success: true,
+      data: {
+        id: user._id,
+        fullName: user.fullName,
+        username: user.username,
+        email: user.email,
+        role: user.role,
+        profileImage: user.profileImage,
+        phone: user.phone,
+        faculty: user.faculty,
+      },
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// @desc    Delete own account
+// @route   DELETE /api/auth/deleteaccount
+// @access  Private
+exports.deleteAccount = async (req, res, next) => {
+  try {
+    await User.findByIdAndDelete(req.user.id);
+    res.cookie('token', 'none', { expires: new Date(Date.now() + 10 * 1000), httpOnly: true });
+    res.status(200).json({ success: true, data: {} });
+  } catch (err) {
+    next(err);
+  }
+};
+
 // @desc    Forgot password
 // @route   POST /api/auth/forgotpassword
 // @access  Public

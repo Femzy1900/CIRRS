@@ -48,10 +48,7 @@ exports.register = async (req, res, next) => {
       });
     } catch (err) {
       console.log(err);
-      user.verificationToken = undefined;
-      user.verificationExpire = undefined;
-
-      await user.save({ validateBeforeSave: false });
+      await user.deleteOne();
 
       res.status(500);
       throw new Error('Verification email could not be sent');
@@ -187,7 +184,7 @@ exports.forgotPassword = async (req, res, next) => {
     await user.save({ validateBeforeSave: false });
 
     // Create reset url
-    const resetUrl = `${process.env.CLIENT_URL || 'http://localhost:5173'}/resetpassword/${resetToken}`;
+    const resetUrl = `${process.env.CLIENT_URL || 'http://localhost:5173'}/reset-password/${resetToken}`;
 
     const message = `You are receiving this email because you (or someone else) has requested the reset of a password. Please make a PUT request to: \n\n ${resetUrl}`;
 

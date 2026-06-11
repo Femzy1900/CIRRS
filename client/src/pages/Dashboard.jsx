@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import useAuthStore from '../store/useAuthStore';
 import useItemStore from '../store/useItemStore';
 import { 
@@ -15,16 +15,27 @@ import { Link } from 'react-router-dom';
 import Button from '../components/ui/Button';
 import Badge from '../components/ui/Badge';
 
+import useNotificationStore from '../store/useNotificationStore';
+
 export default function Dashboard() {
   const { user } = useAuthStore();
-  const { items } = useItemStore();
+  const { items, fetchItems } = useItemStore();
+  const { notifications, fetchNotifications, unreadCount } = useNotificationStore();
 
-  const userReports = items.slice(0, 3);
+  useEffect(() => {
+    fetchItems();
+    fetchNotifications();
+  }, [fetchItems, fetchNotifications]);
+
+  const userId = user?._id?.toString() || user?.id?.toString();
+  const userReports = items.filter(i => (i.postedBy?._id || i.postedBy)?.toString() === userId).slice(0, 3);
+  const activeReportsCount = items.filter(i => (i.postedBy?._id || i.postedBy)?.toString() === userId && i.status === 'lost').length;
+  const recoveredCount = items.filter(i => (i.postedBy?._id || i.postedBy)?.toString() === userId && i.status === 'found').length;
+
 
   const stats = [
-    { label: 'Active Reports', count: 2, icon: Package, color: 'text-sky-400', bg: 'bg-sky-400/10' },
-    { label: 'Pending Claims', count: 1, icon: Clock, color: 'text-brand-gold', bg: 'bg-brand-gold/10' },
-    { label: 'Recovered Items', count: 5, icon: CheckCircle, color: 'text-emerald-400', bg: 'bg-emerald-400/10' },
+    { label: 'Lost Items', count: activeReportsCount, icon: Package, color: 'text-rose-400', bg: 'bg-rose-400/10' },
+    { label: 'Found Items', count: recoveredCount, icon: CheckCircle, color: 'text-emerald-400', bg: 'bg-emerald-400/10' },
   ];
 
   return (
@@ -33,17 +44,17 @@ export default function Dashboard() {
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-8">
         <div className="space-y-2">
           <h1 className="text-4xl lg:text-5xl font-black text-white tracking-tighter leading-tight">
-            Welcome back, <br /><span className="text-brand-gold">{user?.name || 'Student'}!</span>
+            Welcome back, <br /><span className="text-brand-gold">{user?.fullName || 'Student'}!</span>
           </h1>
           <p className="text-slate-400 font-medium max-w-xl">
-            You have <span className="text-white font-bold">2 active reports</span> and 1 new notification since your last visit.
+            You have <span className="text-white font-bold">{activeReportsCount} lost report{activeReportsCount !== 1 ? 's' : ''}</span> and {unreadCount} new notification{unreadCount !== 1 ? 's' : ''} since your last visit.
           </p>
         </div>
         <div className="flex items-center gap-4">
-           <Link to="/report/lost">
+           <Link to="/report-lost">
              <Button variant="secondary" size="lg" icon={Plus}>Lost Item</Button>
            </Link>
-           <Link to="/report/found">
+           <Link to="/report-found">
              <Button variant="accent" size="lg" icon={Plus}>Found Item</Button>
            </Link>
         </div>
@@ -80,7 +91,7 @@ export default function Dashboard() {
 
            <div className="grid grid-cols-1 gap-6">
               {userReports.map((item) => (
-                <div key={item.id} className="group glass-card p-6 rounded-[2rem] border-white/5 hover:border-brand-gold/30 transition-all flex flex-col sm:flex-row items-center gap-8">
+                <div key={item._id || item.id} className="group glass-card p-6 rounded-[2rem] border-white/5 hover:border-brand-gold/30 transition-all flex flex-col sm:flex-row items-center gap-8">
                    <div className="w-full sm:w-32 h-32 rounded-2xl overflow-hidden shrink-0 border border-white/10">
                       <img src={item.image} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" alt={item.title} />
                    </div>
@@ -94,7 +105,7 @@ export default function Dashboard() {
                       <h3 className="text-xl font-black text-white tracking-tight group-hover:text-brand-gold transition-colors">{item.title}</h3>
                       <p className="text-xs text-slate-400 font-medium">{item.location}</p>
                    </div>
-                   <Link to={`/item/${item.id}`}>
+                   <Link to={`/item/${item._id || item.id}`}>
                       <Button variant="ghost" size="sm" icon={ExternalLink}>Details</Button>
                    </Link>
                 </div>
@@ -112,26 +123,22 @@ export default function Dashboard() {
                 Alerts
               </h2>
               <div className="space-y-6 relative z-10">
-                 <div className="flex gap-5 pb-6 border-b border-white/5 group cursor-pointer">
-                    <div className="w-2 h-2 bg-brand-gold rounded-full mt-2 shrink-0 shadow-[0_0_10px_#FFD700]"></div>
-                    <div>
-                       <p className="text-sm text-slate-300 leading-relaxed font-medium">
-                          <span className="font-black text-white block mb-1">Potential Match Found!</span>
-                          An item matching your "Laptop Case" was reported at the library.
-                       </p>
-                       <span className="text-[10px] font-black uppercase tracking-widest text-brand-gold/60 mt-2 block">2 hours ago</span>
-                    </div>
-                 </div>
-                 <div className="flex gap-5 pb-6 border-b border-white/5 opacity-50 group cursor-pointer">
-                    <div className="w-2 h-2 bg-slate-600 rounded-full mt-2 shrink-0"></div>
-                    <div>
-                       <p className="text-sm text-slate-300 leading-relaxed font-medium">
-                          <span className="font-black text-white block mb-1">Claim Verified</span>
-                          Your claim for "Silver Watch" has been approved by the finder.
-                       </p>
-                       <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 mt-2 block">Yesterday</span>
-                    </div>
-                 </div>
+                 {notifications.length > 0 ? notifications.slice(0, 3).map(notif => (
+                   <Link key={notif._id} to={notif.link || '/notifications'} className={`flex gap-5 pb-6 border-b border-white/5 transition-all ${!notif.read ? 'opacity-100 group cursor-pointer hover:bg-white/5 p-2 rounded-xl' : 'opacity-60 hover:opacity-100 p-2 rounded-xl hover:bg-white/5 transition-all'}`}>
+                      <div className={`w-2 h-2 rounded-full mt-2 shrink-0 ${!notif.read ? 'bg-brand-gold shadow-[0_0_10px_#FFD700]' : 'bg-slate-600'}`}></div>
+                      <div>
+                         <p className="text-sm text-slate-300 leading-relaxed font-medium">
+                            <span className="font-black text-white block mb-1">{notif.title}</span>
+                            {notif.message}
+                         </p>
+                         <span className={`text-[10px] font-black uppercase tracking-widest mt-2 block ${!notif.read ? 'text-brand-gold/60' : 'text-slate-500'}`}>
+                           {new Date(notif.createdAt).toLocaleDateString()}
+                         </span>
+                      </div>
+                   </Link>
+                 )) : (
+                   <p className="text-slate-500 text-sm italic">No recent alerts.</p>
+                 )}
               </div>
               <Link to="/notifications">
                 <Button variant="ghost" size="sm" className="w-full mt-4">View All Notifications</Button>

@@ -22,17 +22,19 @@ import Badge from '../../components/ui/Badge';
 
 export default function AdminDashboard() {
   const { 
-    users, 
+    users,
+    claims,
     stats, 
     loading: adminLoading, 
     error: adminError, 
     fetchStats, 
-    fetchUsers, 
+    fetchUsers,
+    fetchClaims,
     updateUserRole, 
     deleteUser 
   } = useAdminStore();
 
-  const { items, addItem } = useItemStore(); // Load existing items
+  const { items, fetchItems } = useItemStore(); // Load existing items
 
   const [activeTab, setActiveTab] = useState('overview');
   const [userSearch, setUserSearch] = useState('');
@@ -42,7 +44,9 @@ export default function AdminDashboard() {
   useEffect(() => {
     fetchStats();
     fetchUsers();
-  }, [fetchStats, fetchUsers]);
+    fetchClaims();
+    fetchItems();
+  }, [fetchStats, fetchUsers, fetchClaims, fetchItems]);
 
   // Handle promoting/demoting user
   const handleToggleRole = async (userId, currentRole) => {
@@ -66,6 +70,19 @@ export default function AdminDashboard() {
       }
     }
   };
+
+  // Handle Claims action
+  const handleUpdateClaim = async (claimId, status) => {
+    try {
+      // Re-use claimApi for this, but admin should be able to update any claim
+      const claimApi = (await import('../../api/claimApi')).default;
+      await claimApi.updateClaimStatus(claimId, status);
+      fetchClaims();
+      fetchStats();
+    } catch(err) {
+      alert('Failed to update claim');
+    }
+  }
 
   // Filtered Users
   const filteredUsers = users.filter(user => {
@@ -381,7 +398,7 @@ export default function AdminDashboard() {
                 </thead>
                 <tbody>
                   {filteredItems.map((item) => (
-                    <tr key={item.id} className="border-b border-white/5 hover:bg-white/2 transition-colors">
+                    <tr key={item._id || item.id} className="border-b border-white/5 hover:bg-white/2 transition-colors">
                       <td className="p-6">
                         <div className="flex items-center gap-4">
                           <img src={item.image} className="w-12 h-12 rounded-xl object-cover border border-white/10" alt="" />
@@ -395,7 +412,7 @@ export default function AdminDashboard() {
                         <p className="text-xs text-white font-bold">{item.location}</p>
                         <p className="text-[10px] text-slate-500 font-semibold mt-1">{item.category}</p>
                       </td>
-                      <td className="p-6 text-xs text-slate-300 font-semibold">{item.postedBy}</td>
+                      <td className="p-6 text-xs text-slate-300 font-semibold">{item.postedBy?.fullName || item.postedBy?.username || '—'}</td>
                       <td className="p-6">
                         <Badge variant={item.status === 'found' ? 'success' : 'danger'}>
                           {item.status}
@@ -457,78 +474,69 @@ export default function AdminDashboard() {
                   </tr>
                 </thead>
                 <tbody>
-                  {[
-                    {
-                      id: 'c1',
-                      user: 'Johnathan Cole',
-                      username: 'jcole',
-                      item: 'iPhone 13 Pro',
-                      score: 100,
-                      status: 'Verified (Auto)',
-                      date: '2024-05-18'
-                    },
-                    {
-                      id: 'c2',
-                      user: 'Sarah Connor',
-                      username: 'terminator_fan',
-                      item: 'Keys with Keychain',
-                      score: 80,
-                      status: 'Verified (Auto)',
-                      date: '2024-05-19'
-                    },
-                    {
-                      id: 'c3',
-                      user: 'Donald Trumpet',
-                      username: 'dtrumpet',
-                      item: 'Blue Backpack',
-                      score: 33,
-                      status: 'Requires Admin Audit',
-                      date: '2024-05-19'
-                    }
-                  ].map((claim) => (
-                    <tr key={claim.id} className="border-b border-white/5 hover:bg-white/2 transition-colors">
-                      <td className="p-6">
-                        <p className="text-sm font-bold text-white leading-tight">{claim.user}</p>
-                        <p className="text-[10px] text-slate-500 font-semibold mt-1">@{claim.username}</p>
-                      </td>
-                      <td className="p-6">
-                        <p className="text-xs text-white font-bold">{claim.item}</p>
-                        <p className="text-[10px] text-slate-500 font-semibold mt-1">Claimed on {claim.date}</p>
-                      </td>
-                      <td className="p-6">
-                        <div className="flex items-center gap-3">
-                          <div className="w-full bg-white/5 rounded-full h-1.5 max-w-[100px] border border-white/5 overflow-hidden">
-                            <div 
-                              className={`h-full rounded-full ${claim.score >= 80 ? 'bg-emerald-400' : 'bg-rose-400'}`}
-                              style={{ width: `${claim.score}%` }}
-                            ></div>
-                          </div>
-                          <span className={`text-xs font-black ${claim.score >= 80 ? 'text-emerald-400' : 'text-rose-400'}`}>{claim.score}%</span>
-                        </div>
-                      </td>
-                      <td className="p-6">
-                        <Badge variant={claim.score >= 80 ? 'success' : 'danger'}>
-                          {claim.status}
-                        </Badge>
-                      </td>
-                      <td className="p-6 text-right">
-                        <div className="flex items-center justify-end gap-3">
-                          <button
-                            className="p-2 text-slate-400 hover:text-emerald-400 hover:bg-white/5 rounded-xl border border-transparent hover:border-white/5 transition-all"
-                            title="Approve Claim"
-                          >
-                            <CheckCircle size={18} />
-                          </button>
-                          <button
-                            className="p-2 text-slate-400 hover:text-rose-500 hover:bg-white/5 rounded-xl border border-transparent hover:border-white/5 transition-all"
-                            title="Reject Claim"
-                          >
-                            <XCircle size={18} />
-                          </button>
-                        </div>
+                  {claims.length > 0 ? (
+                    claims.map((claim) => {
+                      let correctCount = 0;
+                      let totalQuestions = claim.answers?.length || 0;
+                      claim.answers?.forEach(ans => {
+                        if (ans.isCorrect) correctCount++;
+                      });
+                      const score = totalQuestions > 0 ? Math.round((correctCount / totalQuestions) * 100) : 100;
+
+                      return (
+                        <tr key={claim._id} className="border-b border-white/5 hover:bg-white/2 transition-colors">
+                          <td className="p-6">
+                            <p className="text-sm font-bold text-white leading-tight">{claim.claimant?.fullName}</p>
+                            <p className="text-[10px] text-slate-500 font-semibold mt-1">@{claim.claimant?.username}</p>
+                          </td>
+                          <td className="p-6">
+                            <p className="text-xs text-white font-bold">{claim.item?.title}</p>
+                            <p className="text-[10px] text-slate-500 font-semibold mt-1">Claimed on {new Date(claim.createdAt).toLocaleDateString()}</p>
+                          </td>
+                          <td className="p-6">
+                            <div className="flex items-center gap-3">
+                              <div className="w-full bg-white/5 rounded-full h-1.5 max-w-[100px] border border-white/5 overflow-hidden">
+                                <div 
+                                  className={`h-full rounded-full ${score >= 80 ? 'bg-emerald-400' : 'bg-rose-400'}`}
+                                  style={{ width: `${score}%` }}
+                                ></div>
+                              </div>
+                              <span className={`text-xs font-black ${score >= 80 ? 'text-emerald-400' : 'text-rose-400'}`}>{score}%</span>
+                            </div>
+                          </td>
+                          <td className="p-6">
+                            <Badge variant={claim.status === 'approved' ? 'success' : claim.status === 'rejected' ? 'danger' : 'warning'}>
+                              {claim.status}
+                            </Badge>
+                          </td>
+                          <td className="p-6 text-right">
+                            <div className="flex items-center justify-end gap-3">
+                              <button
+                                onClick={() => handleUpdateClaim(claim._id, 'approved')}
+                                className="p-2 text-slate-400 hover:text-emerald-400 hover:bg-white/5 rounded-xl border border-transparent hover:border-white/5 transition-all"
+                                title="Approve Claim"
+                              >
+                                <CheckCircle size={18} />
+                              </button>
+                              <button
+                                onClick={() => handleUpdateClaim(claim._id, 'rejected')}
+                                className="p-2 text-slate-400 hover:text-rose-500 hover:bg-white/5 rounded-xl border border-transparent hover:border-white/5 transition-all"
+                                title="Reject Claim"
+                              >
+                                <XCircle size={18} />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  ) : (
+                    <tr>
+                      <td colSpan="5" className="p-12 text-center text-slate-500 font-black uppercase text-xs tracking-widest">
+                        No Claims Found
                       </td>
                     </tr>
-                  ))}
+                  )}
                 </tbody>
               </table>
             </div>

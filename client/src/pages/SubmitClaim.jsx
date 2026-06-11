@@ -12,13 +12,13 @@ import {
 import Button from '../components/ui/Button';
 import InputField from '../components/ui/InputField';
 import Badge from '../components/ui/Badge';
-import { calculateSimilarity } from '../utils/stringUtils';
+import claimApi from '../api/claimApi';
 
 export default function SubmitClaim() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { items } = useItemStore();
-  const item = items.find(i => i.id === id);
+  const item = items.find(i => (i._id || i.id) === id);
   
   const [loading, setLoading] = useState(false);
   const [answers, setAnswers] = useState({});
@@ -33,33 +33,24 @@ export default function SubmitClaim() {
     setAnswers({ ...answers, [index]: value });
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
 
-    setTimeout(() => {
-      let correctCount = 0;
+    try {
+      const formattedAnswers = questions.map((q, index) => ({
+        question: q.question,
+        providedAnswer: answers[index] || ''
+      }));
+
+      await claimApi.submitClaim(item._id || item.id, formattedAnswers);
       
-      if (hasQuestions) {
-        questions.forEach((q, index) => {
-          const userAnswer = answers[index] || '';
-          const correctAnswer = q.answer || '';
-          
-          // Use fuzzy matching with a 80% similarity threshold per answer
-          const similarity = calculateSimilarity(userAnswer, correctAnswer);
-          
-          if (similarity >= 0.8) {
-            correctCount++;
-          }
-        });
-      }
-
-      const score = hasQuestions ? (correctCount / questions.length) * 100 : 100;
-      const passed = score >= 80;
-
-      setResult({ score, passed });
+      setResult({ submitted: true });
       setLoading(false);
-    }, 1500);
+    } catch (err) {
+      setLoading(false);
+      alert(err.response?.data?.message || 'Failed to submit claim. You may have already submitted one.');
+    }
   };
 
   return (
@@ -81,46 +72,30 @@ export default function SubmitClaim() {
               : ' Provide detailed evidence to verify you are the rightful owner.'}
           </p>
         </div>
-        <Badge variant={result?.passed ? 'success' : 'warning'}>
-          {result?.passed ? 'Identity Verified' : 'Verification Required'}
+        <Badge variant={result?.submitted ? 'success' : 'warning'}>
+          {result?.submitted ? 'Claim Pending' : 'Verification Required'}
         </Badge>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
         <div className="lg:col-span-2 space-y-8">
-           {result?.passed ? (
-             /* Success State - Reveal Contact */
+           {result?.submitted ? (
+             /* Success State - Pending Approval */
              <div className="glass-card p-10 rounded-[3rem] border-emerald-500/30 bg-emerald-500/5 space-y-8 animate-scale-in">
                 <div className="flex items-center gap-6">
                    <div className="w-16 h-16 bg-emerald-500 rounded-2xl flex items-center justify-center text-brand-blue-dark shadow-[0_0_30px_rgba(16,185,129,0.4)]">
                       <ShieldCheck size={32} />
                    </div>
                    <div>
-                      <h2 className="text-2xl font-black text-white tracking-tight">Verification Successful!</h2>
-                      <p className="text-emerald-400 text-xs font-black uppercase tracking-widest mt-1">Score: {result.score}% Accuracy</p>
+                      <h2 className="text-2xl font-black text-white tracking-tight">Claim Submitted!</h2>
+                      <p className="text-emerald-400 text-xs font-black uppercase tracking-widest mt-1">Pending Finder Approval</p>
                    </div>
                 </div>
 
                 <div className="p-8 bg-brand-blue/40 rounded-[2rem] border border-white/5 space-y-6">
                    <p className="text-sm text-slate-300 font-medium leading-relaxed">
-                      You have successfully verified ownership. You can now contact the finder to arrange a safe retrieval.
+                      Your claim has been securely sent to the finder. They will review your answers to their security questions. If approved, you will receive an email with their contact information to arrange a safe retrieval.
                    </p>
-                   
-                   <div className="space-y-4 pt-4 border-t border-white/5">
-                      <div className="flex items-center justify-between p-4 bg-white/5 rounded-xl border border-white/5">
-                         <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">Phone Number</span>
-                         <span className="text-white font-bold">{item.contactInfo?.phone || '+234 800 000 0000'}</span>
-                      </div>
-                      <div className="flex items-center justify-between p-4 bg-white/5 rounded-xl border border-white/5">
-                         <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">Email Address</span>
-                         <span className="text-white font-bold">{item.contactInfo?.email || 'finder@campus.edu'}</span>
-                      </div>
-                   </div>
-
-                   <div className="flex gap-4 pt-4">
-                      <Button variant="accent" className="flex-grow">Call Now</Button>
-                      <Button variant="secondary" className="flex-grow">Email Finder</Button>
-                   </div>
                 </div>
 
                 <Button variant="ghost" size="sm" onClick={() => navigate('/dashboard')} className="w-full">Return to Dashboard</Button>
@@ -128,14 +103,7 @@ export default function SubmitClaim() {
            ) : (
              /* Form State */
              <form className="glass-card p-10 rounded-[3rem] border-white/5 space-y-10" onSubmit={handleSubmit}>
-                {result?.passed === false && (
-                  <div className="p-6 bg-rose-500/10 border border-rose-500/20 rounded-2xl flex gap-4 animate-shake">
-                    <Info className="text-rose-500 shrink-0" size={20} />
-                    <p className="text-xs text-rose-200 font-medium leading-relaxed">
-                      Verification failed (Score: {result.score}%). You need at least 80% to reveal contact details. Please try again or provide more details.
-                    </p>
-                  </div>
-                )}
+
 
                 <div className="space-y-8">
                    {hasQuestions ? (

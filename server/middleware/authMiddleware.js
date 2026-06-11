@@ -27,6 +27,11 @@ exports.protect = async (req, res, next) => {
 
     req.user = await User.findById(decoded.id);
 
+    if (!req.user) {
+      res.status(401);
+      return next(new Error('User no longer exists'));
+    }
+
     next();
   } catch (err) {
     res.status(401);

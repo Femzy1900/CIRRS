@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import useItemStore from '../store/useItemStore';
+import useAuthStore from '../store/useAuthStore';
 import { 
   FileText, 
   Search, 
@@ -15,10 +16,18 @@ import Badge from '../components/ui/Badge';
 import Button from '../components/ui/Button';
 
 export default function MyReports() {
-  const { items } = useItemStore();
+  const { items, fetchItems } = useItemStore();
+  const { user } = useAuthStore();
   const [filter, setFilter] = useState('all');
 
+  useEffect(() => {
+    fetchItems();
+  }, [fetchItems]);
+
+  const userId = user?._id?.toString() || user?.id?.toString();
   const myItems = items.filter(item => {
+    const isOwner = userId && (i => (i?.toString() === userId))(item.postedBy?._id || item.postedBy);
+    if (!isOwner) return false;
     if (filter === 'all') return true;
     return item.status === filter;
   });
@@ -61,7 +70,7 @@ export default function MyReports() {
       <div className="grid grid-cols-1 gap-6">
         {myItems.length > 0 ? (
           myItems.map((item) => (
-            <div key={item.id} className="group glass-card p-6 rounded-[2.5rem] border-white/5 hover:border-brand-gold/30 transition-all flex flex-col md:flex-row items-center gap-8 relative overflow-hidden">
+            <div key={item._id || item.id} className="group glass-card p-6 rounded-[2.5rem] border-white/5 hover:border-brand-gold/30 transition-all flex flex-col md:flex-row items-center gap-8 relative overflow-hidden">
               <div className="absolute top-0 right-0 w-32 h-32 bg-brand-gold/5 rounded-full blur-3xl -mr-16 -mt-16 opacity-0 group-hover:opacity-100 transition-opacity"></div>
               
               <div className="w-full md:w-48 h-48 rounded-[2rem] overflow-hidden shrink-0 border border-white/10 shadow-2xl">
@@ -73,8 +82,8 @@ export default function MyReports() {
                     <Badge variant={item.status === 'found' ? 'success' : 'danger'}>
                        {item.status}
                     </Badge>
-                    <span className="text-[10px] font-black uppercase tracking-[0.2em] text-brand-gold/60">REF: {item.id.slice(0, 8)}</span>
-                    <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">{item.date}</span>
+                    <span className="text-[10px] font-black uppercase tracking-[0.2em] text-brand-gold/60">REF: {(item._id || item.id).slice(0, 8)}</span>
+                    <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">{new Date(item.date).toLocaleDateString()}</span>
                  </div>
                  
                  <div>
@@ -95,7 +104,7 @@ export default function MyReports() {
               </div>
 
               <div className="flex flex-row md:flex-col gap-3 shrink-0 relative z-10">
-                 <Link to={`/item/${item.id}`}>
+                 <Link to={`/item/${item._id || item.id}`}>
                     <Button variant="secondary" size="sm" icon={ExternalLink} className="w-full">Details</Button>
                  </Link>
                  <Button variant="ghost" size="sm" icon={Edit}>Edit</Button>

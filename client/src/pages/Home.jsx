@@ -118,7 +118,7 @@ export default function Home() {
           </div>
           
           <div className="flex items-center gap-2 p-1.5 bg-white/5 backdrop-blur-md rounded-2xl border border-white/10">
-            {['all', 'lost', 'found'].map((type) => (
+            {['all', 'lost', 'found', 'resolved'].map((type) => (
               <button
                 key={type}
                 onClick={() => handleFilter(type)}

@@ -144,6 +144,11 @@ exports.updateClaimStatus = async (req, res, next) => {
     claim.status = status;
     await claim.save();
 
+    // Mark item as resolved when a claim is approved
+    if (status === 'approved') {
+      await Item.findByIdAndUpdate(claim.item._id, { status: 'resolved' });
+    }
+
     // If approved, notify claimant with finder's contact info
     if (status === 'approved') {
       // Fetch finder's info

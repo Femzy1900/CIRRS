@@ -21,6 +21,12 @@ exports.submitClaim = async (req, res, next) => {
       throw new Error(`You can only submit claims for 'found' items.`);
     }
 
+    // Prevent finder from claiming their own item
+    if (item.postedBy._id.toString() === req.user.id) {
+      res.status(400);
+      throw new Error('You cannot submit a claim for an item you reported.');
+    }
+
     // Check if user already submitted a claim
     const existingClaim = await Claim.findOne({ item: item._id, claimant: req.user.id });
     if (existingClaim) {

@@ -1,4 +1,7 @@
 const User = require('../models/User');
+const Item = require('../models/Item');
+const Claim = require('../models/Claim');
+const Notification = require('../models/Notification');
 
 // @desc    Get all users
 // @route   GET /api/admin/users
@@ -69,6 +72,12 @@ exports.deleteUser = async (req, res, next) => {
       throw new Error('You cannot delete your own account');
     }
 
+    // Cascade delete: remove user's items, claims, and notifications
+    const userItems = await Item.find({ postedBy: req.params.id }).select('_id');
+    const itemIds = userItems.map(i => i._id);
+    await Claim.deleteMany({ $or: [{ claimant: req.params.id }, { item: { $in: itemIds } }] });
+    await Item.deleteMany({ postedBy: req.params.id });
+    await Notification.deleteMany({ user: req.params.id });
     await User.findByIdAndDelete(req.params.id);
 
     res.status(200).json({
@@ -89,8 +98,18 @@ exports.getStats = async (req, res, next) => {
     const adminCount = await User.countDocuments({ role: 'admin' });
     const verifiedUsers = await User.countDocuments({ isVerified: true });
 
-    // Mock items and claims statistics since they are frontend-driven currently
-    // We provide realistic dynamic aggregates based on real user numbers too
+    const totalItems = await Item.countDocuments();
+    const lostItems = await Item.countDocuments({ status: 'lost' });
+    const foundItems = await Item.countDocuments({ status: 'found' });
+    
+    // We'll consider a 'resolved' status in the future, for now mock recovered or use claims logic
+    const recoveredItems = await Claim.countDocuments({ status: 'approved' });
+
+    const totalClaims = await Claim.countDocuments();
+    const pendingClaims = await Claim.countDocuments({ status: 'pending' });
+    const approvedClaims = await Claim.countDocuments({ status: 'approved' });
+    const rejectedClaims = await Claim.countDocuments({ status: 'rejected' });
+
     res.status(200).json({
       success: true,
       data: {
@@ -100,18 +119,37 @@ exports.getStats = async (req, res, next) => {
           verified: verifiedUsers
         },
         items: {
-          total: 18,
-          lost: 8,
-          found: 10,
-          recovered: 12
+          total: totalItems,
+          lost: lostItems,
+          found: foundItems,
+          recovered: recoveredItems
         },
         claims: {
-          total: 15,
-          pending: 3,
-          approved: 10,
-          rejected: 2
+          total: totalClaims,
+          pending: pendingClaims,
+          approved: approvedClaims,
+          rejected: rejectedClaims
         }
       }
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// @desc    Get all claims
+// @route   GET /api/admin/claims
+// @access  Private/Admin
+exports.getAllClaims = async (req, res, next) => {
+  try {
+    const claims = await Claim.find()
+      .populate('claimant', 'fullName username email')
+      .populate('item', 'title date')
+      .sort({ createdAt: -1 });
+
+    res.status(200).json({
+      success: true,
+      data: claims
     });
   } catch (err) {
     next(err);

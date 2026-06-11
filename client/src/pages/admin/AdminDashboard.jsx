@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import Button from '../../components/ui/Button';
 import Badge from '../../components/ui/Badge';
+import { toast } from 'sonner';
 
 export default function AdminDashboard() {
   const { 
@@ -49,40 +50,54 @@ export default function AdminDashboard() {
   }, [fetchStats, fetchUsers, fetchClaims, fetchItems]);
 
   // Handle promoting/demoting user
-  const handleToggleRole = async (userId, currentRole) => {
+  const handleToggleRole = (userId, currentRole) => {
     const newRole = currentRole === 'admin' ? 'user' : 'admin';
-    if (window.confirm(`Are you sure you want to change this user's role to ${newRole}?`)) {
-      try {
-        await updateUserRole(userId, newRole);
-      } catch (err) {
-        alert(err.message || 'Failed to update role');
-      }
-    }
+    toast(`Change role to ${newRole}?`, {
+      action: {
+        label: 'Confirm',
+        onClick: async () => {
+          try {
+            await updateUserRole(userId, newRole);
+            toast.success(`Role updated to ${newRole}.`);
+          } catch (err) {
+            toast.error(err.message || 'Failed to update role');
+          }
+        }
+      },
+      cancel: { label: 'Cancel' }
+    });
   };
 
   // Handle deleting user
-  const handleDeleteUser = async (userId, name) => {
-    if (window.confirm(`WARNING: Are you sure you want to delete ${name}'s account? This action is permanent.`)) {
-      try {
-        await deleteUser(userId);
-      } catch (err) {
-        alert(err.message || 'Failed to delete user');
-      }
-    }
+  const handleDeleteUser = (userId, name) => {
+    toast.warning(`Permanently delete ${name}'s account?`, {
+      action: {
+        label: 'Delete',
+        onClick: async () => {
+          try {
+            await deleteUser(userId);
+            toast.success(`${name}'s account deleted.`);
+          } catch (err) {
+            toast.error(err.message || 'Failed to delete user');
+          }
+        }
+      },
+      cancel: { label: 'Cancel' }
+    });
   };
 
   // Handle Claims action
   const handleUpdateClaim = async (claimId, status) => {
     try {
-      // Re-use claimApi for this, but admin should be able to update any claim
       const claimApi = (await import('../../api/claimApi')).default;
       await claimApi.updateClaimStatus(claimId, status);
       fetchClaims();
       fetchStats();
+      toast.success(`Claim ${status}.`);
     } catch(err) {
-      alert('Failed to update claim');
+      toast.error('Failed to update claim');
     }
-  }
+  };
 
   // Filtered Users
   const filteredUsers = users.filter(user => {

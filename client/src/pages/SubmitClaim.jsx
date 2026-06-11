@@ -1,14 +1,15 @@
 import React, { useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import useItemStore from '../store/useItemStore';
-import { 
-  ShieldCheck, 
-  ArrowLeft, 
-  FileText, 
+import {
+  ShieldCheck,
+  ArrowLeft,
+  FileText,
   Info,
   Send,
   Lock
 } from 'lucide-react';
+import { toast } from 'sonner';
 import Button from '../components/ui/Button';
 import InputField from '../components/ui/InputField';
 import Badge from '../components/ui/Badge';
@@ -49,7 +50,7 @@ export default function SubmitClaim() {
       setLoading(false);
     } catch (err) {
       setLoading(false);
-      alert(err.response?.data?.message || 'Failed to submit claim. You may have already submitted one.');
+      toast.error(err.response?.data?.message || 'Failed to submit claim. You may have already submitted one.');
     }
   };
 

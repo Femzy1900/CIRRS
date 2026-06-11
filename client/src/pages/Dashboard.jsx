@@ -19,7 +19,7 @@ import useNotificationStore from '../store/useNotificationStore';
 
 export default function Dashboard() {
   const { user } = useAuthStore();
-  const { items, fetchItems } = useItemStore();
+  const { items, fetchItems, loading: itemsLoading, error: itemsError } = useItemStore();
   const { notifications, fetchNotifications, unreadCount } = useNotificationStore();
 
   useEffect(() => {
@@ -89,8 +89,24 @@ export default function Dashboard() {
               <Link to="/my-reports" className="text-xs font-black text-brand-gold hover:text-white transition-colors uppercase tracking-widest">View All Reports</Link>
            </div>
 
+           {itemsError && (
+             <div className="p-4 bg-rose-500/10 border border-rose-500/20 rounded-2xl text-rose-400 text-xs font-bold">
+               Failed to load reports: {itemsError}
+             </div>
+           )}
            <div className="grid grid-cols-1 gap-6">
-              {userReports.map((item) => (
+              {itemsLoading ? (
+                Array.from({ length: 2 }).map((_, i) => (
+                  <div key={i} className="glass-card p-6 rounded-[2rem] border-white/5 flex gap-8 animate-pulse">
+                    <div className="w-32 h-32 rounded-2xl bg-white/5 shrink-0" />
+                    <div className="flex-1 space-y-3 py-2">
+                      <div className="h-3 bg-white/5 rounded-full w-1/4" />
+                      <div className="h-5 bg-white/5 rounded-full w-1/2" />
+                      <div className="h-3 bg-white/5 rounded-full w-1/3" />
+                    </div>
+                  </div>
+                ))
+              ) : userReports.map((item) => (
                 <div key={item._id || item.id} className="group glass-card p-6 rounded-[2rem] border-white/5 hover:border-brand-gold/30 transition-all flex flex-col sm:flex-row items-center gap-8">
                    <div className="w-full sm:w-32 h-32 rounded-2xl overflow-hidden shrink-0 border border-white/10">
                       <img src={item.image} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" alt={item.title} />
@@ -109,7 +125,7 @@ export default function Dashboard() {
                       <Button variant="ghost" size="sm" icon={ExternalLink}>Details</Button>
                    </Link>
                 </div>
-              ))}
+              )))}
            </div>
         </div>
 

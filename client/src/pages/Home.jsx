@@ -1,12 +1,16 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import useItemStore from '../store/useItemStore';
 import ItemCard from '../components/items/ItemCard';
 import { Search, Filter, Plus, ArrowRight, ShieldCheck, Zap, Heart } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 export default function Home() {
-  const { filteredItems, setSearch, filterByType } = useItemStore();
+  const { filteredItems, setSearch, filterByType, fetchItems, loading, error } = useItemStore();
   const [activeFilter, setActiveFilter] = useState('all');
+
+  useEffect(() => {
+    fetchItems();
+  }, [fetchItems]);
 
   const handleFilter = (type) => {
     setActiveFilter(type);
@@ -140,20 +144,46 @@ export default function Home() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-10">
-          {filteredItems.map((item) => (
-            <ItemCard key={item.id} item={item} />
-          ))}
-        </div>
-
-        {filteredItems.length === 0 && (
-          <div className="text-center py-32 bg-white/5 rounded-[4rem] border-2 border-dashed border-white/10 backdrop-blur-sm">
-             <div className="w-24 h-24 bg-brand-blue/50 rounded-full flex items-center justify-center mx-auto mb-8 shadow-2xl border border-white/10">
-                <Search size={40} className="text-brand-gold/50" />
-             </div>
-             <h3 className="text-2xl font-bold text-white">No items found</h3>
-             <p className="text-slate-400 mt-3 text-lg font-medium">Try adjusting your search or filters to see more results.</p>
+        {error && (
+          <div className="text-center py-12 bg-rose-500/10 rounded-[3rem] border border-rose-500/20">
+            <p className="text-rose-400 font-bold">{error}</p>
+            <button onClick={() => fetchItems()} className="mt-4 text-xs font-black uppercase tracking-widest text-rose-400 hover:text-white transition-colors">
+              Retry
+            </button>
           </div>
+        )}
+
+        {loading ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-10">
+            {Array.from({ length: 8 }).map((_, i) => (
+              <div key={i} className="glass-card rounded-[2.5rem] border-white/5 overflow-hidden animate-pulse">
+                <div className="aspect-[4/3] bg-white/5" />
+                <div className="p-6 space-y-3">
+                  <div className="h-3 bg-white/5 rounded-full w-1/3" />
+                  <div className="h-5 bg-white/5 rounded-full w-3/4" />
+                  <div className="h-3 bg-white/5 rounded-full w-1/2" />
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-10">
+              {filteredItems.map((item) => (
+                <ItemCard key={item._id || item.id} item={item} />
+              ))}
+            </div>
+
+            {filteredItems.length === 0 && !error && (
+              <div className="text-center py-32 bg-white/5 rounded-[4rem] border-2 border-dashed border-white/10 backdrop-blur-sm">
+                <div className="w-24 h-24 bg-brand-blue/50 rounded-full flex items-center justify-center mx-auto mb-8 shadow-2xl border border-white/10">
+                  <Search size={40} className="text-brand-gold/50" />
+                </div>
+                <h3 className="text-2xl font-bold text-white">No items found</h3>
+                <p className="text-slate-400 mt-3 text-lg font-medium">Try adjusting your search or filters to see more results.</p>
+              </div>
+            )}
+          </>
         )}
       </section>
     </div>

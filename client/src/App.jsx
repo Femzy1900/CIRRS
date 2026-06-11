@@ -51,8 +51,6 @@ function App() {
               <Route path="/verify-email/:token" element={<VerifyEmail />} />
             </Route>
 
-            <Route path="/submit-claim/:id" element={<SubmitClaim />} />
-            
             {/* Protected Routes */}
             <Route element={<ProtectedRoute />}>
               <Route path="/dashboard" element={<Dashboard />} />
@@ -61,6 +59,7 @@ function App() {
               <Route path="/my-reports" element={<MyReports />} />
               <Route path="/notifications" element={<Notifications />} />
               <Route path="/profile" element={<Profile />} />
+              <Route path="/submit-claim/:id" element={<SubmitClaim />} />
             </Route>
 
             {/* Admin Routes */}

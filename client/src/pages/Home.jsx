@@ -5,7 +5,7 @@ import { Search, Filter, Plus, ArrowRight, ShieldCheck, Zap, Heart } from 'lucid
 import { Link } from 'react-router-dom';
 
 export default function Home() {
-  const { filteredItems, setSearch, filterByType, fetchItems, loading, error } = useItemStore();
+  const { items, filteredItems, setSearch, filterByType, fetchItems, loading, error } = useItemStore();
   const [activeFilter, setActiveFilter] = useState('all');
 
   useEffect(() => {
@@ -56,18 +56,20 @@ export default function Home() {
 
             <div className="flex items-center gap-12 pt-8 justify-center lg:justify-start">
               <div className="flex flex-col">
-                <span className="text-3xl font-black text-white">1.2k+</span>
-                <span className="text-[10px] uppercase tracking-[0.25em] font-bold text-brand-gold/80">Items Found</span>
+                <span className="text-3xl font-black text-white">{items.filter(i => i.status === 'found' || i.status === 'resolved').length}+</span>
+                <span className="text-[10px] uppercase tracking-[0.25em] font-bold text-brand-gold/80">Items Reported Found</span>
               </div>
               <div className="w-px h-12 bg-white/10"></div>
               <div className="flex flex-col">
-                <span className="text-3xl font-black text-white">98%</span>
-                <span className="text-[10px] uppercase tracking-[0.25em] font-bold text-brand-gold/80">Success Rate</span>
+                <span className="text-3xl font-black text-white">
+                  {items.length > 0 ? Math.round((items.filter(i => i.status === 'resolved').length / items.length) * 100) : 0}%
+                </span>
+                <span className="text-[10px] uppercase tracking-[0.25em] font-bold text-brand-gold/80">Recovery Rate</span>
               </div>
               <div className="w-px h-12 bg-white/10"></div>
               <div className="flex flex-col">
-                <span className="text-3xl font-black text-white">24/7</span>
-                <span className="text-[10px] uppercase tracking-[0.25em] font-bold text-brand-gold/80">Support Team</span>
+                <span className="text-3xl font-black text-white">{items.length}</span>
+                <span className="text-[10px] uppercase tracking-[0.25em] font-bold text-brand-gold/80">Total Reports</span>
               </div>
             </div>
           </div>

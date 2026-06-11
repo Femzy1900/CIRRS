@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import useItemStore from '../store/useItemStore';
 import ItemCard from '../components/items/ItemCard';
-import { Search, Filter, Plus, ArrowRight, ShieldCheck, Zap, Heart } from 'lucide-react';
+import { Search, Filter, Plus, ArrowRight, ShieldCheck, Zap, Heart, Library } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 export default function Home() {
@@ -118,6 +118,11 @@ export default function Home() {
             <h2 className="text-4xl lg:text-5xl font-black text-white">Recent Reports</h2>
             <p className="text-slate-400 text-lg font-medium max-w-xl">Real-time feed of lost and found items across all campus locations and halls.</p>
           </div>
+          <Link to="/browse" className="hidden md:flex items-center gap-2 text-xs font-black uppercase tracking-widest text-brand-gold hover:text-white transition-colors">
+            <Library size={16} />
+            Browse All with Filters
+            <ArrowRight size={14} />
+          </Link>
           
           <div className="flex items-center gap-2 p-1.5 bg-white/5 backdrop-blur-md rounded-2xl border border-white/10">
             {['all', 'lost', 'found', 'resolved'].map((type) => (

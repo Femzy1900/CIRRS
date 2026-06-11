@@ -4,6 +4,7 @@ import { Toaster } from 'sonner';
 import useAuthStore from './store/useAuthStore';
 import useNotificationStore from './store/useNotificationStore';
 import Home from './pages/Home';
+import Browse from './pages/Browse';
 import About from './pages/About';
 import Login from './pages/Login';
 import Register from './pages/Register';
@@ -50,6 +51,7 @@ function App() {
         <main className="flex-grow container mx-auto px-4 py-8">
           <Routes>
             <Route path="/" element={<Home />} />
+            <Route path="/browse" element={<Browse />} />
             <Route path="/about" element={<About />} />
             <Route path="/item/:id" element={<ItemDetail />} />
             

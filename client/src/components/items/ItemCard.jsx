@@ -25,7 +25,7 @@ export default function ItemCard({ item }) {
         <div className="absolute bottom-5 right-5 opacity-0 group-hover:opacity-100 transition-all duration-500 translate-y-2 group-hover:translate-y-0">
            <span className="bg-brand-gold text-brand-blue-dark p-2.5 rounded-xl shadow-2xl flex items-center gap-2 font-bold text-xs">
              <Calendar size={14} />
-             {new Date().toLocaleDateString()}
+             {new Date(item.date).toLocaleDateString()}
            </span>
         </div>
       </div>

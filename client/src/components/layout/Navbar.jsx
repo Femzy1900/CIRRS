@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Search, Bell, PlusCircle, LogIn, Menu, X, LayoutDashboard, FileText, User, LogOut, ShieldAlert, Home, Info } from 'lucide-react';
+import { Search, Bell, PlusCircle, LogIn, Menu, X, LayoutDashboard, FileText, User, LogOut, ShieldAlert, Home, Info, Library } from 'lucide-react';
 import useAuthStore from '../../store/useAuthStore';
 import useNotificationStore from '../../store/useNotificationStore';
 import useItemStore from '../../store/useItemStore';
@@ -58,6 +58,7 @@ export default function Navbar() {
             {/* Desktop Nav */}
             <div className="hidden lg:flex items-center gap-6">
               <Link to="/" className="nav-link text-sm uppercase tracking-widest font-black">Home</Link>
+              <Link to="/browse" className="nav-link text-sm uppercase tracking-widest font-black">Browse</Link>
               <Link to="/about" className="nav-link text-sm uppercase tracking-widest font-black">About</Link>
 
               {isAuthenticated ? (
@@ -149,6 +150,7 @@ export default function Navbar() {
             {/* Nav links */}
             <nav className="flex-1 overflow-y-auto p-4 space-y-1">
               <MobileLink to="/" icon={Home} label="Home" onClick={closeMenu} />
+              <MobileLink to="/browse" icon={Library} label="Browse All" onClick={closeMenu} />
               <MobileLink to="/about" icon={Info} label="About" onClick={closeMenu} />
 
               {isAuthenticated ? (

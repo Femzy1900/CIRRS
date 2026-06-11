@@ -3,280 +3,486 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import useItemStore from '../store/useItemStore';
 import useAuthStore from '../store/useAuthStore';
 import claimApi from '../api/claimApi';
-import { MapPin, Calendar, User, Tag, ArrowLeft, ShieldCheck, MessageCircle, Share2, Info, Check, X } from 'lucide-react';
+import {
+  MapPin, Calendar, User, ArrowLeft, ShieldCheck, Share2, Info,
+  Check, X, Edit, Trash2, Save, Package, Tag, AlertTriangle
+} from 'lucide-react';
 import { toast } from 'sonner';
+import Button from '../components/ui/Button';
+
+const CATEGORIES = ['Electronics', 'Documents', 'Personal Effects', 'Keys', 'Bags', 'Money', 'Cards', 'Other'];
 
 export default function ItemDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { items, singleItem, fetchItemById, loading } = useItemStore();
+  const { items, singleItem, fetchItemById, loading, updateItem, deleteItem } = useItemStore();
   const { user } = useAuthStore();
-  
+
   const [claims, setClaims] = useState([]);
   const [loadingClaims, setLoadingClaims] = useState(false);
-  
+  const [isEditing, setIsEditing] = useState(false);
+  const [editForm, setEditForm] = useState({});
+  const [saving, setSaving] = useState(false);
+
+  // Resolve item
   useEffect(() => {
     const existing = items.find(i => (i._id || i.id) === id);
-    if (!existing && !loading && singleItem?._id !== id) {
-      fetchItemById(id);
-    }
+    if (!existing && !loading && singleItem?._id !== id) fetchItemById(id);
   }, [id, items, fetchItemById, singleItem, loading]);
 
   const item = items.find(i => (i._id || i.id) === id) || (singleItem?._id === id ? singleItem : null);
 
   const userId = user?._id?.toString() || user?.id?.toString();
-  const isFinder = user && item && (item.postedBy?._id || item.postedBy)?.toString() === userId;
+  const isPoster = user && item && (item.postedBy?._id || item.postedBy)?.toString() === userId;
 
+  // Fetch claims for poster — runs on found OR resolved
   useEffect(() => {
-    if (isFinder && item.status === 'found') {
-      setLoadingClaims(true);
-      claimApi.getItemClaims(item._id || item.id)
-        .then(res => {
-          if (res.success) setClaims(res.data);
-          setLoadingClaims(false);
-        })
-        .catch(err => {
-          console.error('Failed to fetch claims', err);
-          setLoadingClaims(false);
-        });
+    if (!item || !isPoster) return;
+    if (item.status !== 'found' && item.status !== 'resolved') return;
+
+    setLoadingClaims(true);
+    claimApi.getItemClaims(item._id || item.id)
+      .then(res => { if (res.success) setClaims(res.data); })
+      .catch(err => console.error('Failed to fetch claims', err))
+      .finally(() => setLoadingClaims(false));
+  }, [isPoster, item?._id, item?.status]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Open edit form pre-filled with current values
+  const openEdit = () => {
+    setEditForm({
+      title: item.title,
+      description: item.description,
+      location: item.location,
+      category: item.category,
+      date: item.date ? new Date(item.date).toISOString().split('T')[0] : '',
+    });
+    setIsEditing(true);
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      await updateItem(id, editForm);
+      toast.success('Post updated successfully.');
+      setIsEditing(false);
+    } catch (err) {
+      toast.error(err.message || 'Failed to update post.');
+    } finally {
+      setSaving(false);
     }
-  }, [isFinder, item]);
+  };
+
+  const handleDelete = () => {
+    toast.warning(`Delete "${item?.title}"?`, {
+      description: 'This will permanently remove the post and all its claims.',
+      action: {
+        label: 'Delete',
+        onClick: async () => {
+          try {
+            await deleteItem(id);
+            toast.success('Post deleted.');
+            navigate('/my-reports');
+          } catch (err) {
+            toast.error(err.message || 'Failed to delete post.');
+          }
+        },
+      },
+      cancel: { label: 'Cancel' },
+    });
+  };
 
   const handleUpdateClaim = async (claimId, status) => {
     try {
       const res = await claimApi.updateClaimStatus(claimId, status);
       if (res.success) {
-        setClaims(claims.map(c => c._id === claimId ? { ...c, status } : c));
+        setClaims(claims.map(c => c._id === claimId ? { ...c, status, passed: status === 'approved' } : c));
         toast.success(status === 'approved' ? 'Claim approved — claimant notified.' : 'Claim rejected.');
       }
-    } catch (err) {
-      toast.error('Failed to update claim status. Please try again.');
+    } catch {
+      toast.error('Failed to update claim status.');
     }
   };
 
-  if (loading) {
+  const handleShare = () => {
+    navigator.clipboard?.writeText(window.location.href)
+      .then(() => toast.success('Link copied to clipboard!'))
+      .catch(() => toast.info(`Share this link: ${window.location.href}`));
+  };
+
+  if (loading && !item) {
     return (
-      <div className="text-center py-32 animate-pulse">
-        <h2 className="text-2xl font-bold text-white uppercase tracking-widest">Loading details...</h2>
+      <div className="max-w-6xl mx-auto pt-8 pb-20 animate-pulse space-y-8">
+        <div className="h-8 bg-white/5 rounded-full w-32" />
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-16">
+          <div className="aspect-square bg-white/5 rounded-[3rem]" />
+          <div className="space-y-6">
+            <div className="h-6 bg-white/5 rounded-full w-1/3" />
+            <div className="h-16 bg-white/5 rounded-2xl w-full" />
+            <div className="h-40 bg-white/5 rounded-3xl w-full" />
+          </div>
+        </div>
       </div>
     );
   }
 
   if (!item) {
     return (
-      <div className="text-center py-20">
-        <h2 className="text-2xl font-bold">Item not found</h2>
-        <button onClick={() => navigate('/')} className="mt-4 text-sky-600 hover:underline">Return to Home</button>
+      <div className="text-center py-32">
+        <h2 className="text-2xl font-black text-white uppercase tracking-widest">Item not found</h2>
+        <button onClick={() => navigate('/')} className="mt-6 text-brand-gold hover:text-white transition-colors font-bold text-sm uppercase tracking-widest">
+          Return Home
+        </button>
       </div>
     );
   }
 
   const isFound = item.status === 'found';
   const isResolved = item.status === 'resolved';
+  const isLost = item.status === 'lost';
+
+  const statusStyle = isFound
+    ? 'bg-emerald-500/80 text-white'
+    : isResolved
+    ? 'bg-purple-500/80 text-white'
+    : 'bg-rose-500/80 text-white';
 
   return (
     <div className="max-w-6xl mx-auto animate-fade-in pb-20 pt-8">
-      <button onClick={() => navigate(-1)} className="inline-flex items-center gap-2 text-xs font-black uppercase tracking-[0.2em] text-slate-500 hover:text-brand-gold mb-10 transition-all group">
-        <ArrowLeft size={16} className="group-hover:-translate-x-1 transition-transform" />
-        Back to Browse
-      </button>
+      {/* Back + Poster Actions */}
+      <div className="flex items-center justify-between mb-10">
+        <button
+          onClick={() => navigate(-1)}
+          className="inline-flex items-center gap-2 text-xs font-black uppercase tracking-[0.2em] text-slate-500 hover:text-brand-gold transition-all group"
+        >
+          <ArrowLeft size={16} className="group-hover:-translate-x-1 transition-transform" />
+          Back
+        </button>
+
+        {isPoster && (
+          <div className="flex items-center gap-3">
+            {!isEditing && (
+              <>
+                <Button variant="ghost" size="sm" icon={Edit} onClick={openEdit}>
+                  Edit Post
+                </Button>
+                <Button variant="danger" size="sm" icon={Trash2} onClick={handleDelete}>
+                  Delete
+                </Button>
+              </>
+            )}
+          </div>
+        )}
+      </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-16">
-        {/* Image Section */}
-        <div className="space-y-8">
-          <div className="rounded-[3rem] overflow-hidden shadow-[0_0_50px_rgba(0,33,71,0.3)] border border-white/10 bg-slate-900/50 backdrop-blur-xl">
-             <img 
-               src={item.image} 
-               alt={item.title} 
-               className="w-full aspect-square object-cover"
-             />
+        {/* ── Image ── */}
+        <div className="space-y-6">
+          <div className="rounded-[3rem] overflow-hidden shadow-[0_0_50px_rgba(0,33,71,0.3)] border border-white/10 bg-slate-900/50">
+            <img src={item.image} alt={item.title} className="w-full aspect-square object-cover" />
           </div>
-          <div className="grid grid-cols-3 gap-6">
-             {[1, 2, 3].map(i => (
-                <div key={i} className="aspect-square rounded-2xl bg-white/5 border border-white/5 hover:border-brand-gold/50 cursor-pointer overflow-hidden transition-all group">
-                   <img src={item.image} className="w-full h-full object-cover opacity-40 group-hover:opacity-100 transition-opacity" alt="thumbnail" />
-                </div>
-             ))}
+          <div className="grid grid-cols-3 gap-4">
+            {[1, 2, 3].map(n => (
+              <div key={n} className="aspect-square rounded-2xl bg-white/5 border border-white/5 hover:border-brand-gold/50 overflow-hidden transition-all group cursor-pointer">
+                <img src={item.image} className="w-full h-full object-cover opacity-40 group-hover:opacity-100 transition-opacity" alt="thumb" />
+              </div>
+            ))}
           </div>
         </div>
 
-        {/* Content Section */}
-        <div className="space-y-12">
-          <div className="space-y-6">
-            <div className="flex items-center gap-4">
-               <span className={`px-5 py-2 rounded-xl text-[10px] font-black uppercase tracking-[0.2em] shadow-2xl backdrop-blur-md border border-white/10 ${
-                 isFound ? 'bg-emerald-500/80 text-white' :
-                 isResolved ? 'bg-purple-500/80 text-white' :
-                 'bg-rose-500/80 text-white'
-               }`}>
-                 {item.status}
-               </span>
-               <span className="text-xs font-black text-brand-gold uppercase tracking-[0.25em]">{item.category}</span>
-            </div>
-            
-            <h1 className="text-5xl lg:text-6xl font-black text-white tracking-tighter leading-tight">
-              {item.title}
-            </h1>
-            
-            <div className="flex flex-wrap items-center gap-8 pt-2">
-               <div className="flex items-center gap-3 text-slate-400">
-                  <div className="p-2 bg-brand-blue/30 rounded-lg">
-                    <MapPin size={18} className="text-brand-gold" />
-                  </div>
-                  <span className="text-sm font-bold tracking-wide">{item.location}</span>
-               </div>
-               <div className="flex items-center gap-3 text-slate-400">
-                  <div className="p-2 bg-brand-blue/30 rounded-lg">
-                    <Calendar size={18} className="text-brand-gold" />
-                  </div>
-                  <span className="text-sm font-bold tracking-wide">Reported {new Date(item.date).toLocaleDateString()}</span>
-               </div>
-            </div>
-          </div>
+        {/* ── Content ── */}
+        <div className="space-y-10">
 
-          <div className="p-10 bg-slate-900/40 border border-white/5 rounded-[3rem] space-y-8 backdrop-blur-xl">
-             <h3 className="text-xl font-black text-white uppercase tracking-widest flex items-center gap-3">
-               <span className="w-8 h-px bg-brand-gold/30"></span>
-               Description
-             </h3>
-             <p className="text-slate-400 leading-relaxed font-medium text-lg">
-               {item.description}
-             </p>
-             <div className="flex items-center gap-5 pt-8 border-t border-white/5">
-                <div className="w-14 h-14 bg-brand-blue/50 rounded-2xl flex items-center justify-center text-brand-gold border border-white/10 shadow-xl">
-                   <User size={28} />
-                </div>
-                <div>
-                   <p className="text-[10px] font-black uppercase tracking-[0.25em] text-brand-gold/60">Reported By</p>
-                   <p className="font-black text-white text-lg tracking-tight">{item.postedBy?.fullName || item.postedBy}</p>
-                </div>
-             </div>
-          </div>
-
-           <div className="flex flex-col sm:flex-row gap-5 pt-4">
-             {!isFinder && isFound && (
-               <Link to={`/submit-claim/${item._id || item.id}`} className="flex-grow">
-                 <button className="w-full btn-accent flex items-center justify-center gap-3 py-5 text-sm uppercase tracking-[0.2em] font-black">
-                   This is mine — Claim It
-                   <ShieldCheck size={22} />
-                 </button>
-               </Link>
-             )}
-             {isResolved && !isFinder && (
-               <div className="flex-grow py-5 px-6 bg-purple-500/10 border border-purple-500/20 rounded-[2rem] text-center">
-                 <p className="text-purple-400 font-black text-xs uppercase tracking-widest">Item Resolved</p>
-                 <p className="text-slate-400 text-xs mt-1">This item has already been claimed and returned to its owner.</p>
-               </div>
-             )}
-             <button className="btn-secondary flex items-center justify-center gap-3 py-5 px-8 text-sm uppercase tracking-[0.2em] font-black border-white/10 bg-white/5">
-               Contact {isFound ? 'Finder' : 'Owner'}
-               <MessageCircle size={22} />
-             </button>
-             <button className="p-5 bg-white/5 text-slate-400 hover:text-brand-gold hover:bg-white/10 rounded-[1.5rem] transition-all border border-white/5">
-                <Share2 size={24} />
-             </button>
-          </div>
-
-           <div className="bg-amber-950/20 p-8 rounded-[2rem] border border-amber-900/30 flex gap-5 backdrop-blur-sm">
-              <div className="w-10 h-10 bg-amber-900/30 rounded-xl flex items-center justify-center shrink-0">
-                <Info className="text-amber-500" size={20} />
+          {/* ── Edit Form ── */}
+          {isEditing ? (
+            <div className="glass-card p-8 rounded-[2.5rem] border-brand-gold/20 space-y-6 animate-fade-in">
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-black text-white uppercase tracking-widest">Editing Post</h3>
+                <button onClick={() => setIsEditing(false)} className="p-2 text-slate-400 hover:text-white rounded-xl hover:bg-white/5 transition-all">
+                  <X size={18} />
+                </button>
               </div>
-              <p className="text-xs text-amber-200/70 leading-relaxed font-medium">
-                 <span className="font-black text-amber-500 uppercase tracking-widest block mb-1">Security Notice</span> 
-                 For your safety, always meet in public campus locations or at the security office when retrieving items. Never share sensitive personal information until ownership is verified.
-              </p>
-           </div>
 
-           {isFinder && (isFound || item.status === 'resolved') && (
-             <div className="mt-12 space-y-6">
-               <div className="flex items-center justify-between">
-                 <h3 className="text-2xl font-black text-white">Claims ({claims.length})</h3>
-                 <span className="text-xs text-slate-500 font-bold">Auto-graded by verification engine</span>
-               </div>
-               {loadingClaims ? (
-                 <div className="space-y-3">
-                   {[1,2].map(i => <div key={i} className="h-32 bg-white/5 rounded-[2rem] animate-pulse" />)}
-                 </div>
-               ) : claims.length === 0 ? (
-                 <div className="p-8 bg-white/5 rounded-[2rem] border border-white/5 text-center">
-                   <p className="text-slate-500 font-medium">No claims submitted yet.</p>
-                 </div>
-               ) : (
-                 <div className="space-y-4">
-                   {claims.map(claim => (
-                     <div key={claim._id} className="p-6 bg-slate-900/60 rounded-[2rem] border border-white/10 space-y-5">
-                       {/* Header */}
-                       <div className="flex justify-between items-start gap-4">
-                         <div className="flex items-center gap-3">
-                           <div className="w-10 h-10 bg-brand-blue/50 rounded-xl flex items-center justify-center text-brand-gold font-black border border-white/10">
-                             {claim.claimant?.fullName?.charAt(0) || '?'}
-                           </div>
-                           <div>
-                             <p className="text-white font-bold">{claim.claimant?.fullName}</p>
-                             <p className="text-xs text-slate-400">{claim.claimant?.email}</p>
-                           </div>
-                         </div>
-                         <span className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest shrink-0 ${
-                           claim.passed ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/20' :
-                           claim.status === 'pending' ? 'bg-amber-500/20 text-amber-400 border border-amber-500/20' :
-                           'bg-rose-500/20 text-rose-400 border border-rose-500/20'
-                         }`}>
-                           {claim.passed ? '✓ Passed' : claim.status}
-                         </span>
-                       </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Title */}
+                <div className="md:col-span-2 space-y-2">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-brand-gold px-1">Title</label>
+                  <div className="relative">
+                    <Package className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={16} />
+                    <input
+                      className="input-field pl-10 w-full"
+                      value={editForm.title || ''}
+                      onChange={e => setEditForm(f => ({ ...f, title: e.target.value }))}
+                    />
+                  </div>
+                </div>
 
-                       {/* Score bar */}
-                       {claim.totalQuestions > 0 && (
-                         <div className="space-y-1.5">
-                           <div className="flex justify-between text-[10px] font-black uppercase tracking-widest">
-                             <span className="text-slate-500">Score</span>
-                             <span className={claim.passed ? 'text-emerald-400' : 'text-rose-400'}>
-                               {claim.score}/{claim.totalQuestions} correct
-                             </span>
-                           </div>
-                           <div className="h-1.5 bg-white/5 rounded-full overflow-hidden">
-                             <div
-                               className={`h-full rounded-full transition-all ${claim.passed ? 'bg-emerald-500' : 'bg-rose-500'}`}
-                               style={{ width: `${(claim.score / claim.totalQuestions) * 100}%` }}
-                             />
-                           </div>
-                         </div>
-                       )}
+                {/* Category */}
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-brand-gold px-1">Category</label>
+                  <div className="relative">
+                    <Tag className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={16} />
+                    <select
+                      className="input-field pl-10 w-full appearance-none"
+                      value={editForm.category || ''}
+                      onChange={e => setEditForm(f => ({ ...f, category: e.target.value }))}
+                    >
+                      {CATEGORIES.map(c => (
+                        <option key={c} value={c} className="bg-slate-900">{c}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
 
-                       {/* Answers */}
-                       <div className="space-y-2 pt-2 border-t border-white/5">
-                         {claim.answers.map((ans, i) => (
-                           <div key={i} className="flex items-start gap-3 bg-white/5 p-3 rounded-xl">
-                             <span className="mt-0.5 shrink-0">
-                               {ans.isCorrect
-                                 ? <Check size={14} className="text-emerald-500" />
-                                 : <X size={14} className="text-rose-500" />}
-                             </span>
-                             <div className="min-w-0">
-                               <p className="text-[10px] text-slate-500 mb-0.5">Q: {ans.question}</p>
-                               <p className="text-sm text-white font-bold truncate">A: {ans.providedAnswer}</p>
-                             </div>
-                           </div>
-                         ))}
-                       </div>
+                {/* Date */}
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-brand-gold px-1">Date</label>
+                  <div className="relative">
+                    <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={16} />
+                    <input
+                      type="date"
+                      className="input-field pl-10 w-full"
+                      value={editForm.date || ''}
+                      onChange={e => setEditForm(f => ({ ...f, date: e.target.value }))}
+                    />
+                  </div>
+                </div>
 
-                       {/* Manual override (only if not auto-graded/passed) */}
-                       {!claim.passed && claim.status === 'pending' && (
-                         <div className="flex gap-3 pt-2">
-                           <button onClick={() => handleUpdateClaim(claim._id, 'approved')} className="flex-1 py-2.5 bg-emerald-500/20 text-emerald-400 text-xs font-black rounded-xl hover:bg-emerald-500 hover:text-white transition-colors border border-emerald-500/20">
-                             Override: Approve
-                           </button>
-                           <button onClick={() => handleUpdateClaim(claim._id, 'rejected')} className="flex-1 py-2.5 bg-rose-500/20 text-rose-400 text-xs font-black rounded-xl hover:bg-rose-500 hover:text-white transition-colors border border-rose-500/20">
-                             Confirm Reject
-                           </button>
-                         </div>
-                       )}
-                     </div>
-                   ))}
-                 </div>
-               )}
-             </div>
-           )}
+                {/* Location */}
+                <div className="md:col-span-2 space-y-2">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-brand-gold px-1">Location</label>
+                  <div className="relative">
+                    <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={16} />
+                    <input
+                      className="input-field pl-10 w-full"
+                      value={editForm.location || ''}
+                      onChange={e => setEditForm(f => ({ ...f, location: e.target.value }))}
+                    />
+                  </div>
+                </div>
+
+                {/* Description */}
+                <div className="md:col-span-2 space-y-2">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-brand-gold px-1">Description</label>
+                  <textarea
+                    rows="4"
+                    className="input-field p-4 w-full resize-none"
+                    value={editForm.description || ''}
+                    onChange={e => setEditForm(f => ({ ...f, description: e.target.value }))}
+                  />
+                </div>
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <Button variant="accent" size="sm" icon={Save} loading={saving} onClick={handleSave}>
+                  Save Changes
+                </Button>
+                <Button variant="ghost" size="sm" onClick={() => setIsEditing(false)}>
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <>
+              {/* ── Status + Title ── */}
+              <div className="space-y-5">
+                <div className="flex items-center gap-3 flex-wrap">
+                  <span className={`px-4 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-[0.2em] border border-white/10 ${statusStyle}`}>
+                    {item.status}
+                  </span>
+                  <span className="text-xs font-black text-brand-gold uppercase tracking-[0.25em]">{item.category}</span>
+                </div>
+
+                <h1 className="text-4xl lg:text-5xl font-black text-white tracking-tighter leading-tight">
+                  {item.title}
+                </h1>
+
+                <div className="flex flex-wrap gap-6 pt-1">
+                  <div className="flex items-center gap-2 text-slate-400">
+                    <div className="p-1.5 bg-brand-blue/30 rounded-lg">
+                      <MapPin size={16} className="text-brand-gold" />
+                    </div>
+                    <span className="text-sm font-bold">{item.location}</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-slate-400">
+                    <div className="p-1.5 bg-brand-blue/30 rounded-lg">
+                      <Calendar size={16} className="text-brand-gold" />
+                    </div>
+                    <span className="text-sm font-bold">{new Date(item.date).toLocaleDateString()}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* ── Description card ── */}
+              <div className="p-8 bg-slate-900/40 border border-white/5 rounded-[2.5rem] space-y-6">
+                <h3 className="text-base font-black text-white uppercase tracking-widest flex items-center gap-3">
+                  <span className="w-6 h-px bg-brand-gold/30" />
+                  Description
+                </h3>
+                <p className="text-slate-400 leading-relaxed font-medium">{item.description}</p>
+                <div className="flex items-center gap-4 pt-6 border-t border-white/5">
+                  <div className="w-12 h-12 bg-brand-blue/50 rounded-2xl flex items-center justify-center text-brand-gold border border-white/10">
+                    <User size={22} />
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-black uppercase tracking-[0.25em] text-brand-gold/60">Reported By</p>
+                    <p className="font-black text-white tracking-tight">{item.postedBy?.fullName || item.postedBy}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* ── Action buttons ── */}
+              <div className="flex flex-wrap gap-4">
+                {!isPoster && isFound && (
+                  <Link to={`/submit-claim/${item._id || item.id}`} className="flex-grow">
+                    <button className="w-full btn-accent flex items-center justify-center gap-3 py-4 text-sm uppercase tracking-[0.2em] font-black">
+                      This is mine — Claim It
+                      <ShieldCheck size={20} />
+                    </button>
+                  </Link>
+                )}
+                {isResolved && !isPoster && (
+                  <div className="flex-grow py-4 px-6 bg-purple-500/10 border border-purple-500/20 rounded-[2rem] text-center">
+                    <p className="text-purple-400 font-black text-xs uppercase tracking-widest">Item Resolved</p>
+                    <p className="text-slate-400 text-xs mt-1">Already claimed and returned to its owner.</p>
+                  </div>
+                )}
+                <button
+                  onClick={handleShare}
+                  className="p-4 bg-white/5 text-slate-400 hover:text-brand-gold hover:bg-white/10 rounded-2xl transition-all border border-white/5"
+                  title="Share link"
+                >
+                  <Share2 size={22} />
+                </button>
+              </div>
+
+              {/* ── Security notice ── */}
+              <div className="bg-amber-950/20 p-6 rounded-[2rem] border border-amber-900/30 flex gap-4">
+                <div className="w-9 h-9 bg-amber-900/30 rounded-xl flex items-center justify-center shrink-0">
+                  <Info className="text-amber-500" size={18} />
+                </div>
+                <p className="text-xs text-amber-200/70 leading-relaxed font-medium">
+                  <span className="font-black text-amber-500 uppercase tracking-widest block mb-1">Safety Notice</span>
+                  Always meet in a public campus location or at the Security Office. Your contact details are only shared after the claimer passes verification.
+                </p>
+              </div>
+            </>
+          )}
+
+          {/* ── Claims Panel (poster only) ── */}
+          {isPoster && (isFound || isResolved) && (
+            <div className="space-y-5 pt-4 border-t border-white/5">
+              <div className="flex items-center justify-between">
+                <h3 className="text-xl font-black text-white uppercase tracking-widest">
+                  Claims
+                  {claims.length > 0 && (
+                    <span className="ml-3 w-7 h-7 inline-flex items-center justify-center bg-brand-gold text-brand-blue-dark rounded-lg text-xs font-black">
+                      {claims.length}
+                    </span>
+                  )}
+                </h3>
+                <span className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Auto-graded</span>
+              </div>
+
+              {loadingClaims ? (
+                <div className="space-y-3">
+                  {[1, 2].map(i => <div key={i} className="h-28 bg-white/5 rounded-2xl animate-pulse" />)}
+                </div>
+              ) : claims.length === 0 ? (
+                <div className="p-8 bg-white/5 rounded-2xl border border-white/5 text-center">
+                  <p className="text-slate-500 font-medium text-sm">No claims submitted yet.</p>
+                  <p className="text-slate-600 text-xs mt-1">People who believe this is their item will appear here.</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {claims.map(claim => (
+                    <div
+                      key={claim._id}
+                      className={`p-5 rounded-2xl border space-y-4 ${
+                        claim.passed
+                          ? 'bg-emerald-500/5 border-emerald-500/20'
+                          : 'bg-slate-900/60 border-white/10'
+                      }`}
+                    >
+                      {/* Claimant header */}
+                      <div className="flex justify-between items-start gap-3">
+                        <div className="flex items-center gap-3">
+                          <div className="w-9 h-9 bg-brand-blue/50 rounded-xl flex items-center justify-center text-brand-gold font-black text-sm border border-white/10 shrink-0">
+                            {claim.claimant?.fullName?.charAt(0) || '?'}
+                          </div>
+                          <div>
+                            <p className="text-white font-bold text-sm">{claim.claimant?.fullName}</p>
+                            <p className="text-xs text-slate-500">{claim.claimant?.email}</p>
+                          </div>
+                        </div>
+                        <span className={`px-3 py-1 rounded-xl text-[10px] font-black uppercase tracking-widest border shrink-0 ${
+                          claim.passed
+                            ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/20'
+                            : claim.status === 'pending'
+                            ? 'bg-amber-500/20 text-amber-400 border-amber-500/20'
+                            : 'bg-rose-500/20 text-rose-400 border-rose-500/20'
+                        }`}>
+                          {claim.passed ? '✓ Passed' : claim.status}
+                        </span>
+                      </div>
+
+                      {/* Score bar */}
+                      {claim.totalQuestions > 0 && (
+                        <div className="space-y-1">
+                          <div className="flex justify-between text-[10px] font-black uppercase tracking-widest">
+                            <span className="text-slate-500">Score</span>
+                            <span className={claim.passed ? 'text-emerald-400' : 'text-rose-400'}>
+                              {claim.score}/{claim.totalQuestions} correct
+                            </span>
+                          </div>
+                          <div className="h-1.5 bg-white/5 rounded-full overflow-hidden">
+                            <div
+                              className={`h-full rounded-full transition-all duration-700 ${claim.passed ? 'bg-emerald-500' : 'bg-rose-500'}`}
+                              style={{ width: `${(claim.score / claim.totalQuestions) * 100}%` }}
+                            />
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Q&A answers */}
+                      <div className="space-y-1.5 pt-1 border-t border-white/5">
+                        {claim.answers.map((ans, i) => (
+                          <div key={i} className="flex items-start gap-2.5 bg-white/5 p-3 rounded-xl">
+                            <span className="mt-0.5 shrink-0">
+                              {ans.isCorrect
+                                ? <Check size={13} className="text-emerald-500" />
+                                : <X size={13} className="text-rose-500" />}
+                            </span>
+                            <div className="min-w-0">
+                              <p className="text-[10px] text-slate-500 leading-snug">Q: {ans.question}</p>
+                              <p className="text-xs text-white font-bold mt-0.5">A: {ans.providedAnswer}</p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* Manual override for failed/pending */}
+                      {!claim.passed && claim.status === 'pending' && (
+                        <div className="flex gap-2 pt-1">
+                          <button
+                            onClick={() => handleUpdateClaim(claim._id, 'approved')}
+                            className="flex-1 py-2 bg-emerald-500/15 text-emerald-400 text-xs font-black rounded-xl hover:bg-emerald-500 hover:text-white transition-colors border border-emerald-500/20"
+                          >
+                            Override: Approve
+                          </button>
+                          <button
+                            onClick={() => handleUpdateClaim(claim._id, 'rejected')}
+                            className="flex-1 py-2 bg-rose-500/15 text-rose-400 text-xs font-black rounded-xl hover:bg-rose-500 hover:text-white transition-colors border border-rose-500/20"
+                          >
+                            Confirm Reject
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </div>

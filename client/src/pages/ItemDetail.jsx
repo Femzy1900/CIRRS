@@ -24,10 +24,8 @@ export default function ItemDetail() {
 
   const item = items.find(i => (i._id || i.id) === id) || (singleItem?._id === id ? singleItem : null);
 
-  const isFinder = user && item && (
-    (typeof item.postedBy === 'string' && item.postedBy === user._id) ||
-    (item.postedBy?._id === user._id)
-  );
+  const userId = user?._id?.toString() || user?.id?.toString();
+  const isFinder = user && item && (item.postedBy?._id || item.postedBy)?.toString() === userId;
 
   useEffect(() => {
     if (isFinder && item.status === 'found') {
@@ -74,6 +72,7 @@ export default function ItemDetail() {
   }
 
   const isFound = item.status === 'found';
+  const isResolved = item.status === 'resolved';
 
   return (
     <div className="max-w-6xl mx-auto animate-fade-in pb-20 pt-8">
@@ -106,7 +105,9 @@ export default function ItemDetail() {
           <div className="space-y-6">
             <div className="flex items-center gap-4">
                <span className={`px-5 py-2 rounded-xl text-[10px] font-black uppercase tracking-[0.2em] shadow-2xl backdrop-blur-md border border-white/10 ${
-                 isFound ? 'bg-emerald-500/80 text-white' : 'bg-rose-500/80 text-white'
+                 isFound ? 'bg-emerald-500/80 text-white' :
+                 isResolved ? 'bg-purple-500/80 text-white' :
+                 'bg-rose-500/80 text-white'
                }`}>
                  {item.status}
                </span>
@@ -153,13 +154,19 @@ export default function ItemDetail() {
           </div>
 
            <div className="flex flex-col sm:flex-row gap-5 pt-4">
-             {!isFinder && (
+             {!isFinder && isFound && (
                <Link to={`/submit-claim/${item._id || item.id}`} className="flex-grow">
                  <button className="w-full btn-accent flex items-center justify-center gap-3 py-5 text-sm uppercase tracking-[0.2em] font-black">
-                   {isFound ? 'This is mine (Claim)' : 'I found this'}
+                   This is mine — Claim It
                    <ShieldCheck size={22} />
                  </button>
                </Link>
+             )}
+             {isResolved && !isFinder && (
+               <div className="flex-grow py-5 px-6 bg-purple-500/10 border border-purple-500/20 rounded-[2rem] text-center">
+                 <p className="text-purple-400 font-black text-xs uppercase tracking-widest">Item Resolved</p>
+                 <p className="text-slate-400 text-xs mt-1">This item has already been claimed and returned to its owner.</p>
+               </div>
              )}
              <button className="btn-secondary flex items-center justify-center gap-3 py-5 px-8 text-sm uppercase tracking-[0.2em] font-black border-white/10 bg-white/5">
                Contact {isFound ? 'Finder' : 'Owner'}
@@ -180,52 +187,87 @@ export default function ItemDetail() {
               </p>
            </div>
 
-           {isFinder && isFound && (
+           {isFinder && (isFound || item.status === 'resolved') && (
              <div className="mt-12 space-y-6">
-               <h3 className="text-2xl font-black text-white">Pending Claims ({claims.length})</h3>
+               <div className="flex items-center justify-between">
+                 <h3 className="text-2xl font-black text-white">Claims ({claims.length})</h3>
+                 <span className="text-xs text-slate-500 font-bold">Auto-graded by verification engine</span>
+               </div>
                {loadingClaims ? (
-                 <p className="text-slate-400">Loading claims...</p>
+                 <div className="space-y-3">
+                   {[1,2].map(i => <div key={i} className="h-32 bg-white/5 rounded-[2rem] animate-pulse" />)}
+                 </div>
                ) : claims.length === 0 ? (
-                 <p className="text-slate-500">No claims submitted yet.</p>
+                 <div className="p-8 bg-white/5 rounded-[2rem] border border-white/5 text-center">
+                   <p className="text-slate-500 font-medium">No claims submitted yet.</p>
+                 </div>
                ) : (
                  <div className="space-y-4">
                    {claims.map(claim => (
-                     <div key={claim._id} className="p-6 bg-slate-900/60 rounded-[2rem] border border-white/10 space-y-4">
-                       <div className="flex justify-between items-center">
-                         <div>
-                           <p className="text-white font-bold">{claim.claimant?.fullName}</p>
-                           <p className="text-xs text-slate-400">{claim.claimant?.email}</p>
+                     <div key={claim._id} className="p-6 bg-slate-900/60 rounded-[2rem] border border-white/10 space-y-5">
+                       {/* Header */}
+                       <div className="flex justify-between items-start gap-4">
+                         <div className="flex items-center gap-3">
+                           <div className="w-10 h-10 bg-brand-blue/50 rounded-xl flex items-center justify-center text-brand-gold font-black border border-white/10">
+                             {claim.claimant?.fullName?.charAt(0) || '?'}
+                           </div>
+                           <div>
+                             <p className="text-white font-bold">{claim.claimant?.fullName}</p>
+                             <p className="text-xs text-slate-400">{claim.claimant?.email}</p>
+                           </div>
                          </div>
-                         <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${
-                           claim.status === 'pending' ? 'bg-amber-500/20 text-amber-500' :
-                           claim.status === 'approved' ? 'bg-emerald-500/20 text-emerald-500' :
-                           'bg-rose-500/20 text-rose-500'
+                         <span className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest shrink-0 ${
+                           claim.passed ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/20' :
+                           claim.status === 'pending' ? 'bg-amber-500/20 text-amber-400 border border-amber-500/20' :
+                           'bg-rose-500/20 text-rose-400 border border-rose-500/20'
                          }`}>
-                           {claim.status}
+                           {claim.passed ? '✓ Passed' : claim.status}
                          </span>
                        </div>
-                       
-                       <div className="space-y-3 pt-4 border-t border-white/5">
+
+                       {/* Score bar */}
+                       {claim.totalQuestions > 0 && (
+                         <div className="space-y-1.5">
+                           <div className="flex justify-between text-[10px] font-black uppercase tracking-widest">
+                             <span className="text-slate-500">Score</span>
+                             <span className={claim.passed ? 'text-emerald-400' : 'text-rose-400'}>
+                               {claim.score}/{claim.totalQuestions} correct
+                             </span>
+                           </div>
+                           <div className="h-1.5 bg-white/5 rounded-full overflow-hidden">
+                             <div
+                               className={`h-full rounded-full transition-all ${claim.passed ? 'bg-emerald-500' : 'bg-rose-500'}`}
+                               style={{ width: `${(claim.score / claim.totalQuestions) * 100}%` }}
+                             />
+                           </div>
+                         </div>
+                       )}
+
+                       {/* Answers */}
+                       <div className="space-y-2 pt-2 border-t border-white/5">
                          {claim.answers.map((ans, i) => (
-                           <div key={i} className="bg-white/5 p-4 rounded-xl">
-                             <p className="text-xs text-slate-400 mb-1">Q: {ans.question}</p>
-                             <div className="flex items-center gap-2">
-                               <span className="text-sm text-white font-bold">A: {ans.providedAnswer}</span>
-                               {ans.isCorrect !== undefined && (
-                                 ans.isCorrect ? <Check size={16} className="text-emerald-500" /> : <X size={16} className="text-rose-500" />
-                               )}
+                           <div key={i} className="flex items-start gap-3 bg-white/5 p-3 rounded-xl">
+                             <span className="mt-0.5 shrink-0">
+                               {ans.isCorrect
+                                 ? <Check size={14} className="text-emerald-500" />
+                                 : <X size={14} className="text-rose-500" />}
+                             </span>
+                             <div className="min-w-0">
+                               <p className="text-[10px] text-slate-500 mb-0.5">Q: {ans.question}</p>
+                               <p className="text-sm text-white font-bold truncate">A: {ans.providedAnswer}</p>
                              </div>
                            </div>
                          ))}
                        </div>
 
-                       {claim.status === 'pending' && (
-                         <div className="flex gap-4 pt-4">
-                           <button onClick={() => handleUpdateClaim(claim._id, 'approved')} className="flex-1 py-3 bg-emerald-500/20 text-emerald-500 font-bold rounded-xl hover:bg-emerald-500 hover:text-white transition-colors">
-                             Approve & Share Contact
+                       {/* Manual override (only if not auto-graded/passed) */}
+                       {!claim.passed && claim.status === 'pending' && (
+                         <div className="flex gap-3 pt-2">
+                           <button onClick={() => handleUpdateClaim(claim._id, 'approved')} className="flex-1 py-2.5 bg-emerald-500/20 text-emerald-400 text-xs font-black rounded-xl hover:bg-emerald-500 hover:text-white transition-colors border border-emerald-500/20">
+                             Override: Approve
                            </button>
-                           <button onClick={() => handleUpdateClaim(claim._id, 'rejected')} className="flex-1 py-3 bg-rose-500/20 text-rose-500 font-bold rounded-xl hover:bg-rose-500 hover:text-white transition-colors">
-                             Reject Claim
+                           <button onClick={() => handleUpdateClaim(claim._id, 'rejected')} className="flex-1 py-2.5 bg-rose-500/20 text-rose-400 text-xs font-black rounded-xl hover:bg-rose-500 hover:text-white transition-colors border border-rose-500/20">
+                             Confirm Reject
                            </button>
                          </div>
                        )}

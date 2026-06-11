@@ -20,7 +20,7 @@ const ItemSchema = new mongoose.Schema({
   category: {
     type: String,
     required: [true, 'Please select a category'],
-    enum: ['Electronics', 'Documents', 'Personal Effects', 'Keys', 'Bags', 'Other']
+    enum: ['Electronics', 'Documents', 'Personal Effects', 'Keys', 'Bags', 'Money', 'Cards', 'Other']
   },
   location: {
     type: String,

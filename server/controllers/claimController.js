@@ -3,6 +3,7 @@ const Item = require('../models/Item');
 const User = require('../models/User');
 const Notification = require('../models/Notification');
 const sendEmail = require('../utils/sendEmail');
+const { gradeAnswers, isPassing } = require('../utils/fuzzyMatch');
 
 // @desc    Submit a claim for a found item
 // @route   POST /api/claims/:itemId
@@ -27,61 +28,103 @@ exports.submitClaim = async (req, res, next) => {
       throw new Error('You cannot submit a claim for an item you reported.');
     }
 
-    // Check if user already submitted a claim
+    // Prevent duplicate claims
     const existingClaim = await Claim.findOne({ item: item._id, claimant: req.user.id });
     if (existingClaim) {
       res.status(400);
-      throw new Error(`You have already submitted a claim for this item.`);
+      throw new Error('You have already submitted a claim for this item.');
     }
 
-    // Auto-grade the answers (basic string comparison)
-    let score = 0;
-    const { answers } = req.body;
-    
-    if (answers && item.verificationQuestions) {
-      answers.forEach(ans => {
-        const matchingQuestion = item.verificationQuestions.find(vq => vq.question === ans.question);
-        if (matchingQuestion) {
-          if (matchingQuestion.answer.toLowerCase().trim() === ans.providedAnswer.toLowerCase().trim()) {
-            ans.isCorrect = true;
-            score++;
-          } else {
-            ans.isCorrect = false;
-          }
-        }
-      });
-    }
+    // ── Grade answers with fuzzy matching ─────────────────────────────
+    const { answers: submitted } = req.body;
+    const { gradedAnswers, score, totalQuestions } = gradeAnswers(
+      submitted || [],
+      item.verificationQuestions || []
+    );
 
+    const passed = isPassing(score, totalQuestions, item.category);
+    const autoStatus = passed ? 'approved' : 'rejected';
+
+    // ── Create the claim ───────────────────────────────────────────────
     const claim = await Claim.create({
       item: item._id,
       claimant: req.user.id,
-      answers
+      answers: gradedAnswers,
+      score,
+      totalQuestions,
+      passed,
+      status: autoStatus,
     });
 
-    // Notify the finder via email
-    if (item.postedBy && item.postedBy.email) {
-      const claimUrl = `${process.env.CLIENT_URL || 'http://localhost:5173'}/item/${item._id}`;
-      const message = `Hello ${item.postedBy.fullName},\n\nSomeone has submitted a claim for the "${item.title}" you found!\n\nPlease log in to review their answers to your security questions: ${claimUrl}`;
-      
+    // ── Build the response payload ─────────────────────────────────────
+    const responseData = {
+      claim,
+      score,
+      totalQuestions,
+      passed,
+    };
+
+    // If passed, attach finder contact info directly in the response
+    if (passed) {
+      const finder = item.postedBy;
+      responseData.finderContact = {
+        fullName: finder.fullName,
+        email: finder.email,
+        phone: finder.phone || null,
+      };
+
+      // Notify finder that their item was successfully claimed
+      await Notification.create({
+        user: finder._id,
+        type: 'claim_approved',
+        title: 'Your item has been claimed!',
+        message: `Someone answered your security questions correctly and claimed "${item.title}". The item has been marked as resolved.`,
+        link: `/item/${item._id}`
+      });
+
+      // Mark item as resolved
+      await Item.findByIdAndUpdate(item._id, { status: 'resolved' });
+
+      // Email the finder
       await sendEmail({
-        email: item.postedBy.email,
-        subject: 'New Claim on your Found Item! - CIRS',
-        message
-      }).catch(err => console.error("Email send failed", err));
-    }
+        email: finder.email,
+        subject: `"${item.title}" has been claimed — CIRS`,
+        message: `Hello ${finder.fullName},\n\nSomeone answered your security questions correctly and claimed "${item.title}".\n\nThey passed ${score}/${totalQuestions} questions.\n\nThe item has been marked as resolved. Please arrange a safe handover on campus.`
+      }).catch(err => console.error('Email send failed', err));
 
-    // Notify the finder via in-app Notification
-    await Notification.create({
-      user: item.postedBy._id || item.postedBy,
-      type: 'claim_submitted',
-      title: 'New Claim Submitted',
-      message: `Someone submitted a claim for "${item.title}". Please review their answers.`,
-      link: `/item/${item._id}`
-    });
+      // Email the claimant with finder contact info
+      const claimant = await User.findById(req.user.id);
+      if (claimant?.email) {
+        await sendEmail({
+          email: claimant.email,
+          subject: `Ownership verified! Contact details for "${item.title}" — CIRS`,
+          message: `Congratulations!\n\nYou passed the ownership verification for "${item.title}" (${score}/${totalQuestions} correct).\n\nFinder Contact Details:\nName: ${finder.fullName}\nEmail: ${finder.email}\nPhone: ${finder.phone || 'Not provided'}\n\nPlease arrange a safe public meeting on campus to collect your item.`
+        }).catch(err => console.error('Email send failed', err));
+      }
+
+    } else {
+      // Notify finder of failed claim attempt
+      await Notification.create({
+        user: item.postedBy._id,
+        type: 'claim_submitted',
+        title: 'Failed claim attempt on your item',
+        message: `Someone tried to claim "${item.title}" but only got ${score}/${totalQuestions} answers correct. The claim was automatically rejected.`,
+        link: `/item/${item._id}`
+      });
+
+      // Notify claimant of rejection
+      await Notification.create({
+        user: req.user.id,
+        type: 'claim_rejected',
+        title: 'Claim verification failed',
+        message: `You answered ${score}/${totalQuestions} questions correctly for "${item.title}". The required minimum was not met. You may not resubmit.`,
+        link: `/item/${item._id}`
+      });
+    }
 
     res.status(201).json({
       success: true,
-      data: claim
+      data: responseData,
     });
   } catch (err) {
     next(err);
@@ -94,30 +137,60 @@ exports.submitClaim = async (req, res, next) => {
 exports.getItemClaims = async (req, res, next) => {
   try {
     const item = await Item.findById(req.params.itemId);
-    
+
     if (!item) {
       res.status(404);
       throw new Error('Item not found');
     }
 
-    // Make sure user is the finder
     if (item.postedBy.toString() !== req.user.id && req.user.role !== 'admin') {
       res.status(403);
       throw new Error('Not authorized to view claims for this item');
     }
 
-    const claims = await Claim.find({ item: req.params.itemId }).populate('claimant', 'fullName email profileImage');
+    const claims = await Claim.find({ item: req.params.itemId })
+      .populate('claimant', 'fullName email profileImage phone');
 
-    res.status(200).json({
-      success: true,
-      data: claims
-    });
+    res.status(200).json({ success: true, data: claims });
   } catch (err) {
     next(err);
   }
 };
 
-// @desc    Update claim status (Approve/Reject)
+// @desc    Get the current user's claim for a specific item
+// @route   GET /api/claims/my/:itemId
+// @access  Private
+exports.getMyClaimForItem = async (req, res, next) => {
+  try {
+    const claim = await Claim.findOne({
+      item: req.params.itemId,
+      claimant: req.user.id,
+    }).populate('item', 'title postedBy');
+
+    if (!claim) {
+      return res.status(200).json({ success: true, data: null });
+    }
+
+    // If approved, also return finder contact info
+    let finderContact = null;
+    if (claim.passed) {
+      const item = await Item.findById(claim.item).populate('postedBy', 'fullName email phone');
+      if (item?.postedBy) {
+        finderContact = {
+          fullName: item.postedBy.fullName,
+          email: item.postedBy.email,
+          phone: item.postedBy.phone || null,
+        };
+      }
+    }
+
+    res.status(200).json({ success: true, data: { claim, finderContact } });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// @desc    Manual override: update claim status (Admin / Finder)
 // @route   PUT /api/claims/:id
 // @access  Private
 exports.updateClaimStatus = async (req, res, next) => {
@@ -129,7 +202,6 @@ exports.updateClaimStatus = async (req, res, next) => {
       throw new Error('Claim not found');
     }
 
-    // Make sure user is the finder
     if (claim.item.postedBy.toString() !== req.user.id && req.user.role !== 'admin') {
       res.status(403);
       throw new Error('Not authorized to update this claim');
@@ -142,49 +214,40 @@ exports.updateClaimStatus = async (req, res, next) => {
     }
 
     claim.status = status;
+    if (status === 'approved') claim.passed = true;
     await claim.save();
 
-    // Mark item as resolved when a claim is approved
     if (status === 'approved') {
       await Item.findByIdAndUpdate(claim.item._id, { status: 'resolved' });
-    }
 
-    // If approved, notify claimant with finder's contact info
-    if (status === 'approved') {
-      // Fetch finder's info
       const finder = await User.findById(claim.item.postedBy);
-      
+
       await Notification.create({
         user: claim.claimant._id || claim.claimant,
         type: 'claim_approved',
-        title: 'Claim Approved!',
+        title: 'Claim Manually Approved!',
         message: `Your claim for "${claim.item.title}" was approved by the finder.`,
-        link: `/item/${claim.item._id}` // Link to the item where they can see contact info
+        link: `/item/${claim.item._id}`
       });
 
-      if (claim.claimant && claim.claimant.email) {
-        const message = `Good news!\n\nYour claim for "${claim.item.title}" was APPROVED by the finder.\n\nYou can now contact them to retrieve your item.\n\nFinder Name: ${finder.fullName}\nFinder Email: ${finder.email}\nPhone: ${finder.phone || 'N/A'}`;
-        
+      if (claim.claimant?.email && finder) {
         await sendEmail({
           email: claim.claimant.email,
-          subject: 'Claim Approved! - CIRS',
-          message
+          subject: 'Claim Approved! — CIRS',
+          message: `Good news!\n\nYour claim for "${claim.item.title}" was APPROVED.\n\nFinder Name: ${finder.fullName}\nFinder Email: ${finder.email}\nPhone: ${finder.phone || 'N/A'}`
         }).catch(err => console.error(err));
       }
-    } else if (status === 'rejected') {
+    } else {
       await Notification.create({
         user: claim.claimant._id || claim.claimant,
         type: 'claim_rejected',
         title: 'Claim Rejected',
-        message: `Your claim for "${claim.item.title}" was rejected due to incorrect security answers.`,
+        message: `Your claim for "${claim.item.title}" was rejected.`,
         link: `/item/${claim.item._id}`
       });
     }
 
-    res.status(200).json({
-      success: true,
-      data: claim
-    });
+    res.status(200).json({ success: true, data: claim });
   } catch (err) {
     next(err);
   }

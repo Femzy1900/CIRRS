@@ -16,6 +16,7 @@ import {
   Upload
 } from 'lucide-react';
 import useItemStore from '../store/useItemStore';
+import uploadApi from '../api/uploadApi';
 import Button from '../components/ui/Button';
 import InputField from '../components/ui/InputField';
 import Badge from '../components/ui/Badge';
@@ -33,28 +34,41 @@ export default function ReportLostItem() {
   const { addItem } = useItemStore();
   const [loading, setLoading] = useState(false);
   const [preview, setPreview] = useState(null);
+  const [imageFile, setImageFile] = useState(null);
 
   const { register, handleSubmit, formState: { errors } } = useForm({
     resolver: zodResolver(schema),
   });
 
-  const onSubmit = (data) => {
-    setLoading(true);
-    setTimeout(() => {
-      addItem({
+  const onSubmit = async (data) => {
+    try {
+      setLoading(true);
+      let imageUrl = 'https://placehold.co/600x400/020617/FFFFFF?text=No+Image+Available';
+      
+      if (imageFile) {
+        const uploadRes = await uploadApi.uploadImage(imageFile);
+        if (uploadRes.success) {
+          imageUrl = uploadRes.url;
+        }
+      }
+
+      await addItem({
         ...data,
         status: 'lost',
-        image: preview || 'https://images.unsplash.com/photo-1586769852044-692d6e3703a0?auto=format&fit=crop&w=800&q=80',
-        postedBy: 'Demo User',
+        image: imageUrl
       });
       setLoading(false);
       navigate('/dashboard');
-    }, 1500);
+    } catch (err) {
+      setLoading(false);
+      console.error('Failed to submit lost item:', err);
+    }
   };
 
   const handleImageChange = (e) => {
     const file = e.target.files[0];
     if (file) {
+      setImageFile(file);
       const reader = new FileReader();
       reader.onloadend = () => setPreview(reader.result);
       reader.readAsDataURL(file);
@@ -107,6 +121,8 @@ export default function ReportLostItem() {
                     <option value="Personal Effects" className="bg-slate-900">Personal Effects</option>
                     <option value="Keys" className="bg-slate-900">Keys</option>
                     <option value="Bags" className="bg-slate-900">Bags</option>
+                    <option value="Money" className="bg-slate-900">Money / Cash</option>
+                    <option value="Cards" className="bg-slate-900">Cards (ATM / ID)</option>
                     <option value="Other" className="bg-slate-900">Other</option>
                   </select>
                 </div>

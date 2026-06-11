@@ -125,7 +125,7 @@ export default function Dashboard() {
                       <Button variant="ghost" size="sm" icon={ExternalLink}>Details</Button>
                    </Link>
                 </div>
-              )))}
+              ))}
            </div>
         </div>
 

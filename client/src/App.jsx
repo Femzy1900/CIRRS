@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { Toaster } from 'sonner';
 import useAuthStore from './store/useAuthStore';
+import useNotificationStore from './store/useNotificationStore';
 import Home from './pages/Home';
 import About from './pages/About';
 import Login from './pages/Login';
@@ -25,11 +26,21 @@ import AdminRoute from './routes/AdminRoute';
 import AdminDashboard from './pages/admin/AdminDashboard';
 
 function App() {
-  const { checkAuth } = useAuthStore();
+  const { checkAuth, isAuthenticated } = useAuthStore();
+  const { startPolling, stopPolling } = useNotificationStore();
 
   useEffect(() => {
     checkAuth();
   }, [checkAuth]);
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      startPolling();
+    } else {
+      stopPolling();
+    }
+    return () => stopPolling();
+  }, [isAuthenticated, startPolling, stopPolling]);
 
   return (
     <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>

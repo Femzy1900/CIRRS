@@ -1,5 +1,35 @@
-/TEXT
-node_modules
+﻿# Environment variables - NEVER commit these
 .env
-.env.*
+.env.local
+.env.development
+.env.production
+.env.test
+server/.env
+client/.env
 *.env
+
+# Dependencies
+node_modules/
+client/node_modules/
+server/node_modules/
+
+# Build output
+dist/
+build/
+client/dist/
+client/build/
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Coverage
+coverage/
+.nyc_output/

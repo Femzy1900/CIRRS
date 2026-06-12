@@ -3,8 +3,9 @@ import { Link } from 'react-router-dom';
 
 export default function ItemCard({ item }) {
   const statusStyle =
-    item.status === 'found' ? 'bg-emerald-500/80 text-white' :
-    item.status === 'resolved' ? 'bg-brand-gold/90 text-brand-blue-dark' :
+    item.status === 'found'     ? 'bg-emerald-500/80 text-white' :
+    item.status === 'claimed'   ? 'bg-amber-500/80 text-white' :
+    item.status === 'resolved'  ? 'bg-purple-500/80 text-white' :
     'bg-rose-500/80 text-white';
 
   return (

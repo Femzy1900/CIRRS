@@ -33,7 +33,7 @@ const ItemSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ['lost', 'found', 'resolved'],
+    enum: ['lost', 'found', 'claimed', 'resolved'],
     required: true
   },
   image: {

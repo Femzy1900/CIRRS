@@ -9,7 +9,7 @@ import {
 } from 'lucide-react';
 
 const CATEGORIES = ['Electronics', 'Documents', 'Personal Effects', 'Keys', 'Bags', 'Money', 'Cards', 'Other'];
-const STATUSES = ['lost', 'found', 'resolved'];
+const STATUSES = ['lost', 'found', 'claimed', 'resolved'];
 const SORT_OPTIONS = [
   { value: '-createdAt', label: 'Newest First' },
   { value: 'createdAt', label: 'Oldest First' },

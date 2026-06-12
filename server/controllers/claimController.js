@@ -17,9 +17,9 @@ exports.submitClaim = async (req, res, next) => {
       throw new Error(`Item not found with id of ${req.params.itemId}`);
     }
 
-    if (item.status !== 'found') {
+    if (item.status !== 'found' && item.status !== 'claimed') {
       res.status(400);
-      throw new Error(`You can only submit claims for 'found' items.`);
+      throw new Error(`Claims can only be submitted for items that are currently 'found'.`);
     }
 
     // Prevent finder from claiming their own item
@@ -78,18 +78,18 @@ exports.submitClaim = async (req, res, next) => {
         user: finder._id,
         type: 'claim_approved',
         title: 'Your item has been claimed!',
-        message: `Someone answered your security questions correctly and claimed "${item.title}". The item has been marked as resolved.`,
+        message: `Someone answered your security questions correctly and claimed "${item.title}". Contact details have been exchanged — please confirm the handover and mark the item as Resolved.`,
         link: `/item/${item._id}`
       });
 
-      // Mark item as resolved
-      await Item.findByIdAndUpdate(item._id, { status: 'resolved' });
+      // Mark item as claimed (awaiting physical handover confirmation by poster)
+      await Item.findByIdAndUpdate(item._id, { status: 'claimed' });
 
       // Email the finder
       await sendEmail({
         email: finder.email,
         subject: `"${item.title}" has been claimed — CIRS`,
-        message: `Hello ${finder.fullName},\n\nSomeone answered your security questions correctly and claimed "${item.title}".\n\nThey passed ${score}/${totalQuestions} questions.\n\nThe item has been marked as resolved. Please arrange a safe handover on campus.`
+        message: `Hello ${finder.fullName},\n\nSomeone answered your security questions correctly and claimed "${item.title}".\n\nThey passed ${score}/${totalQuestions} questions.\n\nContact details have been shared with the claimant. Please arrange a safe handover on campus, then return to the item page and mark it as Resolved to close it out.`
       }).catch(err => console.error('Email send failed', err));
 
       // Email the claimant with finder contact info
@@ -218,7 +218,7 @@ exports.updateClaimStatus = async (req, res, next) => {
     await claim.save();
 
     if (status === 'approved') {
-      await Item.findByIdAndUpdate(claim.item._id, { status: 'resolved' });
+      await Item.findByIdAndUpdate(claim.item._id, { status: 'claimed' });
 
       const finder = await User.findById(claim.item.postedBy);
 

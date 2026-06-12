@@ -35,10 +35,10 @@ export default function ItemDetail() {
   const userId = user?._id?.toString() || user?.id?.toString();
   const isPoster = user && item && (item.postedBy?._id || item.postedBy)?.toString() === userId;
 
-  // Fetch claims for poster — runs on found OR resolved
+  // Fetch claims for poster — runs on found, claimed, or resolved
   useEffect(() => {
     if (!item || !isPoster) return;
-    if (item.status !== 'found' && item.status !== 'resolved') return;
+    if (!['found', 'claimed', 'resolved'].includes(item.status)) return;
 
     setLoadingClaims(true);
     claimApi.getItemClaims(item._id || item.id)
@@ -137,11 +137,14 @@ export default function ItemDetail() {
   }
 
   const isFound = item.status === 'found';
+  const isClaimed = item.status === 'claimed';
   const isResolved = item.status === 'resolved';
   const isLost = item.status === 'lost';
 
   const statusStyle = isFound
     ? 'bg-emerald-500/80 text-white'
+    : isClaimed
+    ? 'bg-amber-500/80 text-white'
     : isResolved
     ? 'bg-purple-500/80 text-white'
     : 'bg-rose-500/80 text-white';
@@ -330,6 +333,45 @@ export default function ItemDetail() {
                 </div>
               </div>
 
+              {/* ── Claimed banner: poster prompted to confirm handover ── */}
+              {isPoster && isClaimed && (
+                <div className="p-6 bg-amber-500/10 border border-amber-500/30 rounded-[2rem] space-y-4">
+                  <div className="flex items-start gap-3">
+                    <div className="w-9 h-9 bg-amber-500/20 rounded-xl flex items-center justify-center shrink-0 mt-0.5">
+                      <AlertTriangle size={18} className="text-amber-400" />
+                    </div>
+                    <div>
+                      <p className="text-amber-400 font-black text-sm uppercase tracking-widest">Awaiting Handover</p>
+                      <p className="text-slate-400 text-xs mt-1 leading-relaxed">
+                        A claim has been verified and contact details exchanged. Once you physically hand over the item, mark it as Resolved to close this report.
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => {
+                      toast.warning('Mark as Resolved?', {
+                        description: 'This confirms the item has been physically returned. This action cannot be undone.',
+                        action: {
+                          label: 'Confirm',
+                          onClick: async () => {
+                            try {
+                              await updateItem(id, { status: 'resolved' });
+                              toast.success('Item marked as Resolved. 🎉');
+                            } catch (err) {
+                              toast.error(err.message || 'Failed to update status.');
+                            }
+                          },
+                        },
+                        cancel: { label: 'Not yet' },
+                      });
+                    }}
+                    className="w-full py-3 bg-amber-500 text-white font-black text-xs uppercase tracking-[0.2em] rounded-2xl hover:bg-amber-400 transition-colors active:scale-95"
+                  >
+                    ✓ Confirm Handover — Mark as Resolved
+                  </button>
+                </div>
+              )}
+
               {/* ── Action buttons ── */}
               <div className="flex flex-wrap gap-4">
                 {!isPoster && isFound && (
@@ -340,10 +382,16 @@ export default function ItemDetail() {
                     </button>
                   </Link>
                 )}
+                {isClaimed && !isPoster && (
+                  <div className="flex-grow py-4 px-6 bg-amber-500/10 border border-amber-500/20 rounded-[2rem] text-center">
+                    <p className="text-amber-400 font-black text-xs uppercase tracking-widest">Claim Verified</p>
+                    <p className="text-slate-400 text-xs mt-1">Ownership verified — awaiting physical handover.</p>
+                  </div>
+                )}
                 {isResolved && !isPoster && (
                   <div className="flex-grow py-4 px-6 bg-purple-500/10 border border-purple-500/20 rounded-[2rem] text-center">
                     <p className="text-purple-400 font-black text-xs uppercase tracking-widest">Item Resolved</p>
-                    <p className="text-slate-400 text-xs mt-1">Already claimed and returned to its owner.</p>
+                    <p className="text-slate-400 text-xs mt-1">Successfully returned to its owner.</p>
                   </div>
                 )}
                 <button
@@ -369,7 +417,7 @@ export default function ItemDetail() {
           )}
 
           {/* ── Claims Panel (poster only) ── */}
-          {isPoster && (isFound || isResolved) && (
+          {isPoster && (isFound || isClaimed || isResolved) && (
             <div className="space-y-5 pt-4 border-t border-white/5">
               <div className="flex items-center justify-between">
                 <h3 className="text-xl font-black text-white uppercase tracking-widest">

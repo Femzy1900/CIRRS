@@ -21,6 +21,9 @@ const sendEmail = async (options) => {
     html: options.html,
   };
 
+  // Verify connection before sending (helps surface config errors clearly)
+  await transporter.verify();
+
   const info = await transporter.sendMail(message);
 
   if (process.env.NODE_ENV !== 'production') {

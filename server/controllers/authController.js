@@ -271,12 +271,17 @@ exports.forgotPassword = async (req, res, next) => {
         data: 'If an account with that email exists, a reset link has been sent.',
       });
     } catch (err) {
+      console.error('[Email Error]', err.message || err);
       user.resetPasswordToken = undefined;
       user.resetPasswordExpire = undefined;
       await user.save({ validateBeforeSave: false });
 
       res.status(500);
-      throw new Error('Email could not be sent. Please try again later.');
+      // Show real error in dev so it's easier to diagnose
+      const msg = process.env.NODE_ENV === 'production'
+        ? 'Email could not be sent. Please try again later.'
+        : `Email error: ${err.message}`;
+      throw new Error(msg);
     }
   } catch (err) {
     next(err);

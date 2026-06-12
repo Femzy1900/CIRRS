@@ -1,6 +1,6 @@
-import React from 'react';
+import React, { forwardRef } from 'react';
 
-const InputField = ({ label, icon: Icon, error, className = '', ...props }) => {
+const InputField = forwardRef(({ label, icon: Icon, error, className = '', ...props }, ref) => {
   return (
     <div className={`space-y-3 ${className}`}>
       {label && (
@@ -13,6 +13,7 @@ const InputField = ({ label, icon: Icon, error, className = '', ...props }) => {
           <Icon className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 group-focus-within:text-brand-gold transition-colors" size={18} />
         )}
         <input
+          ref={ref}
           className={`input-field ${Icon ? 'pl-12' : 'px-6'} ${error ? 'border-rose-500 focus:ring-rose-500/10' : ''}`}
           {...props}
         />
@@ -24,6 +25,8 @@ const InputField = ({ label, icon: Icon, error, className = '', ...props }) => {
       )}
     </div>
   );
-};
+});
+
+InputField.displayName = 'InputField';
 
 export default InputField;

@@ -20,6 +20,11 @@ const adminApi = {
     const response = await axiosInstance.get('/admin/stats');
     return response.data;
   },
+
+  fetchClaims: async () => {
+    const response = await axiosInstance.get('/admin/claims');
+    return response.data;
+  },
 };
 
 export default adminApi;

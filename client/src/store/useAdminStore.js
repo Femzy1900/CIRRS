@@ -3,6 +3,7 @@ import adminApi from '../api/adminApi';
 
 const useAdminStore = create((set, get) => ({
   users: [],
+  claims: [],
   stats: null,
   loading: false,
   error: null,
@@ -28,6 +29,19 @@ const useAdminStore = create((set, get) => ({
     } catch (err) {
       set({ 
         error: err.response?.data?.message || 'Failed to fetch users list', 
+        loading: false 
+      });
+    }
+  },
+
+  fetchClaims: async () => {
+    set({ loading: true, error: null });
+    try {
+      const data = await adminApi.fetchClaims();
+      set({ claims: data.data, loading: false });
+    } catch (err) {
+      set({ 
+        error: err.response?.data?.message || 'Failed to fetch admin claims', 
         loading: false 
       });
     }

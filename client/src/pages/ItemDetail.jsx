@@ -33,6 +33,10 @@ export default function ItemDetail() {
   const [reviewHover, setReviewHover] = useState(0);
   const [submittingReview, setSubmittingReview] = useState(false);
 
+  // Claimant review eligibility
+  const [claimPassed, setClaimPassed] = useState(false);
+  const [claimCheckDone, setClaimCheckDone] = useState(false);
+
   // Resolve item
   useEffect(() => {
     const existing = items.find(i => (i._id || i.id) === id);
@@ -118,13 +122,29 @@ export default function ItemDetail() {
       .catch(() => toast.info(`Share this link: ${window.location.href}`));
   };
 
-  // Load existing review when item is resolved and user is the poster
+  // Check if this (non-poster) user has a passed claim on this item
   useEffect(() => {
-    if (!user || !isPoster || item?.status !== 'resolved' || reviewLoaded) return;
+    if (!user || isPoster || !item || claimCheckDone) return;
+    if (!['claimed', 'resolved'].includes(item.status)) return;
+
+    claimApi.getMyClaimForItem(item._id || item.id)
+      .then(res => {
+        if (res.success && res.data?.claim?.passed) setClaimPassed(true);
+      })
+      .catch(() => {})
+      .finally(() => setClaimCheckDone(true));
+  }, [user, isPoster, item?._id, item?.status, claimCheckDone]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Load existing review once user is eligible (poster on resolved, claimant on claimed/resolved)
+  useEffect(() => {
+    const posterEligible  = isPoster && item?.status === 'resolved';
+    const claimantEligible = !isPoster && claimPassed && ['claimed', 'resolved'].includes(item?.status);
+    if (!user || (!posterEligible && !claimantEligible) || reviewLoaded) return;
+
     reviewApi.getMyReview()
       .then(res => { setMyReview(res.data); setReviewLoaded(true); })
       .catch(() => setReviewLoaded(true));
-  }, [user, isPoster, item?.status, reviewLoaded]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [user, isPoster, claimPassed, item?.status, reviewLoaded]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleSubmitReview = async () => {
     if (!reviewMessage.trim() || reviewMessage.trim().length < 10) {
@@ -566,8 +586,8 @@ export default function ItemDetail() {
             </div>
           )}
 
-          {/* ── Review Prompt (poster, resolved only) ── */}
-          {isPoster && isResolved && reviewLoaded && (
+          {/* ── Review Prompt (poster after resolved, OR claimant after claim passed) ── */}
+          {reviewLoaded && ((isPoster && isResolved) || (!isPoster && claimPassed && (isClaimed || isResolved))) && (
             <div className="pt-4 border-t border-white/5 space-y-5">
               <h3 className="text-xl font-black text-white uppercase tracking-widest flex items-center gap-3">
                 <Star size={20} className="text-brand-gold" />
@@ -595,8 +615,10 @@ export default function ItemDetail() {
                 /* ── Review form ── */
                 <div className="p-6 bg-slate-900/60 border border-white/10 rounded-2xl space-y-5">
                   <p className="text-slate-400 text-xs leading-relaxed">
-                    This item has been successfully returned. How was your experience using CIRS?
-                    Your review will be displayed on the homepage to help other users.
+                    {isPoster
+                      ? 'The item has been successfully returned. How was your experience using CIRS?'
+                      : 'Your ownership was verified and contact details were exchanged. How was your experience?'}
+                    {' '}Your review will be displayed on the homepage to help other students.
                   </p>
 
                   {/* Star picker */}

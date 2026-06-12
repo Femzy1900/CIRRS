@@ -3,9 +3,10 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import useItemStore from '../store/useItemStore';
 import useAuthStore from '../store/useAuthStore';
 import claimApi from '../api/claimApi';
+import reviewApi from '../api/reviewApi';
 import {
   MapPin, Calendar, User, ArrowLeft, ShieldCheck, Share2, Info,
-  Check, X, Edit, Trash2, Save, Package, Tag, AlertTriangle
+  Check, X, Edit, Trash2, Save, Package, Tag, AlertTriangle, Star
 } from 'lucide-react';
 import { toast } from 'sonner';
 import Button from '../components/ui/Button';
@@ -23,6 +24,14 @@ export default function ItemDetail() {
   const [isEditing, setIsEditing] = useState(false);
   const [editForm, setEditForm] = useState({});
   const [saving, setSaving] = useState(false);
+
+  // Review state
+  const [myReview, setMyReview] = useState(null);         // null = not yet loaded
+  const [reviewLoaded, setReviewLoaded] = useState(false);
+  const [reviewRating, setReviewRating] = useState(5);
+  const [reviewMessage, setReviewMessage] = useState('');
+  const [reviewHover, setReviewHover] = useState(0);
+  const [submittingReview, setSubmittingReview] = useState(false);
 
   // Resolve item
   useEffect(() => {
@@ -107,6 +116,31 @@ export default function ItemDetail() {
     navigator.clipboard?.writeText(window.location.href)
       .then(() => toast.success('Link copied to clipboard!'))
       .catch(() => toast.info(`Share this link: ${window.location.href}`));
+  };
+
+  // Load existing review when item is resolved and user is the poster
+  useEffect(() => {
+    if (!user || !isPoster || item?.status !== 'resolved' || reviewLoaded) return;
+    reviewApi.getMyReview()
+      .then(res => { setMyReview(res.data); setReviewLoaded(true); })
+      .catch(() => setReviewLoaded(true));
+  }, [user, isPoster, item?.status, reviewLoaded]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleSubmitReview = async () => {
+    if (!reviewMessage.trim() || reviewMessage.trim().length < 10) {
+      toast.error('Please write at least 10 characters.');
+      return;
+    }
+    setSubmittingReview(true);
+    try {
+      const res = await reviewApi.createReview({ rating: reviewRating, message: reviewMessage.trim() });
+      setMyReview(res.data);
+      toast.success('Thank you for your review! 🎉');
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to submit review.');
+    } finally {
+      setSubmittingReview(false);
+    }
   };
 
   if (loading && !item) {
@@ -527,6 +561,94 @@ export default function ItemDetail() {
                       )}
                     </div>
                   ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ── Review Prompt (poster, resolved only) ── */}
+          {isPoster && isResolved && reviewLoaded && (
+            <div className="pt-4 border-t border-white/5 space-y-5">
+              <h3 className="text-xl font-black text-white uppercase tracking-widest flex items-center gap-3">
+                <Star size={20} className="text-brand-gold" />
+                {myReview ? 'Your Review' : 'Share Your Experience'}
+              </h3>
+
+              {myReview ? (
+                /* ── Already submitted ── */
+                <div className="p-6 bg-emerald-500/5 border border-emerald-500/20 rounded-2xl space-y-3">
+                  <div className="flex gap-1">
+                    {[1, 2, 3, 4, 5].map(s => (
+                      <Star
+                        key={s}
+                        size={18}
+                        className={s <= myReview.rating ? 'text-brand-gold fill-brand-gold' : 'text-slate-700'}
+                      />
+                    ))}
+                  </div>
+                  <p className="text-slate-300 text-sm leading-relaxed font-medium italic">"{myReview.message}"</p>
+                  <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">
+                    Submitted {new Date(myReview.createdAt).toLocaleDateString()}
+                  </p>
+                </div>
+              ) : (
+                /* ── Review form ── */
+                <div className="p-6 bg-slate-900/60 border border-white/10 rounded-2xl space-y-5">
+                  <p className="text-slate-400 text-xs leading-relaxed">
+                    This item has been successfully returned. How was your experience using CIRS?
+                    Your review will be displayed on the homepage to help other users.
+                  </p>
+
+                  {/* Star picker */}
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black uppercase tracking-widest text-brand-gold">Rating</label>
+                    <div className="flex gap-2">
+                      {[1, 2, 3, 4, 5].map(s => (
+                        <button
+                          key={s}
+                          type="button"
+                          onClick={() => setReviewRating(s)}
+                          onMouseEnter={() => setReviewHover(s)}
+                          onMouseLeave={() => setReviewHover(0)}
+                          className="p-1 transition-transform hover:scale-125 active:scale-110"
+                        >
+                          <Star
+                            size={28}
+                            className={
+                              s <= (reviewHover || reviewRating)
+                                ? 'text-brand-gold fill-brand-gold'
+                                : 'text-slate-700'
+                            }
+                          />
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Message */}
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black uppercase tracking-widest text-brand-gold">Your experience</label>
+                    <textarea
+                      rows="3"
+                      maxLength={400}
+                      placeholder="e.g. CIRS made it so easy to return the item. The verification system gave me confidence..."
+                      value={reviewMessage}
+                      onChange={e => setReviewMessage(e.target.value)}
+                      className="input-field p-4 w-full resize-none text-sm"
+                    />
+                    <p className="text-right text-[10px] text-slate-600">{reviewMessage.length}/400</p>
+                  </div>
+
+                  <Button
+                    variant="accent"
+                    size="sm"
+                    icon={Star}
+                    loading={submittingReview}
+                    onClick={handleSubmitReview}
+                    disabled={reviewMessage.trim().length < 10}
+                  >
+                    Submit Review
+                  </Button>
                 </div>
               )}
             </div>

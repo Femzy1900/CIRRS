@@ -22,6 +22,12 @@ exports.submitClaim = async (req, res, next) => {
       throw new Error(`Claims can only be submitted for items that are currently 'found'.`);
     }
 
+    // Require at least one verification question
+    if (!item.verificationQuestions || item.verificationQuestions.length === 0) {
+      res.status(400);
+      throw new Error('This item has no verification questions. Contact the finder directly.');
+    }
+
     // Prevent finder from claiming their own item
     if (item.postedBy._id.toString() === req.user.id) {
       res.status(400);
@@ -211,6 +217,12 @@ exports.updateClaimStatus = async (req, res, next) => {
     if (!['approved', 'rejected'].includes(status)) {
       res.status(400);
       throw new Error('Invalid status');
+    }
+
+    // Prevent overwriting an already-finalised approval
+    if (claim.passed) {
+      res.status(400);
+      throw new Error('This claim has already been approved and the claimant notified. No further changes are allowed.');
     }
 
     claim.status = status;

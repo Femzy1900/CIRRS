@@ -6,17 +6,16 @@ const useAuthStore = create(
   persist(
     (set, get) => ({
       user: null,
-      token: localStorage.getItem('token') || null,
-      isAuthenticated: !!localStorage.getItem('token'),
+      isAuthenticated: false,
       loading: false,
       error: null,
 
       login: async (credentials) => {
         set({ loading: true, error: null });
         try {
+          // Token is set as an HTTP-only cookie by the server — never stored client-side
           const data = await authApi.login(credentials);
-          localStorage.setItem('token', data.token);
-          set({ user: data.user, token: data.token, isAuthenticated: true, loading: false });
+          set({ user: data.user, isAuthenticated: true, loading: false });
           return data;
         } catch (error) {
           const message = error.response?.data?.message || 'Login failed';
@@ -40,12 +39,11 @@ const useAuthStore = create(
 
       logout: async () => {
         try {
-          await authApi.logout();
+          await authApi.logout();  // server clears the HTTP-only cookie
         } catch (error) {
           console.error('Logout error:', error);
         } finally {
-          localStorage.removeItem('token');
-          set({ user: null, token: null, isAuthenticated: false });
+          set({ user: null, isAuthenticated: false });
         }
       },
 
@@ -65,9 +63,9 @@ const useAuthStore = create(
       resetPassword: async (token, password) => {
         set({ loading: true, error: null });
         try {
+          // Server sets a new HTTP-only cookie after successful reset
           const data = await authApi.resetPassword(token, password);
-          localStorage.setItem('token', data.token);
-          set({ user: data.user, token: data.token, isAuthenticated: true, loading: false });
+          set({ user: data.user, isAuthenticated: true, loading: false });
           return data;
         } catch (error) {
           const message = error.response?.data?.message || 'Failed to reset password';
@@ -106,20 +104,19 @@ const useAuthStore = create(
         try {
           await authApi.deleteAccount();
         } finally {
-          localStorage.removeItem('token');
-          set({ user: null, token: null, isAuthenticated: false });
+          set({ user: null, isAuthenticated: false });
         }
       },
 
+      // Called on app mount — verifies the HTTP-only cookie with the server
       checkAuth: async () => {
-        if (!get().token) return;
         set({ loading: true });
         try {
           const data = await authApi.getMe();
           set({ user: data.data, isAuthenticated: true, loading: false });
-        } catch (error) {
-          localStorage.removeItem('token');
-          set({ user: null, token: null, isAuthenticated: false, loading: false });
+        } catch {
+          // Cookie absent, expired, or invalid — clear state
+          set({ user: null, isAuthenticated: false, loading: false });
         }
       },
 
@@ -127,9 +124,18 @@ const useAuthStore = create(
     }),
     {
       name: 'auth-storage',
+      // Only persist the user object and auth flag for fast initial render
+      // Authentication is validated server-side via cookie on every app load
       partialize: (state) => ({ user: state.user, isAuthenticated: state.isAuthenticated }),
     }
   )
 );
+
+// Listen for 401 events dispatched by axiosInstance and clear auth state
+if (typeof window !== 'undefined') {
+  window.addEventListener('auth:unauthorized', () => {
+    useAuthStore.getState().logout();
+  });
+}
 
 export default useAuthStore;

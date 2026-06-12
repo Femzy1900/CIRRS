@@ -27,7 +27,16 @@ const userSchema = new mongoose.Schema(
     password: {
       type: String,
       required: [true, 'Please add a password'],
-      minlength: 6,
+      minlength: [8, 'Password must be at least 8 characters'],
+      select: false,
+    },
+    loginAttempts: {
+      type: Number,
+      default: 0,
+      select: false,
+    },
+    lockUntil: {
+      type: Date,
       select: false,
     },
     profileImage: {
@@ -108,6 +117,39 @@ userSchema.methods.getResetPasswordToken = function () {
   this.resetPasswordExpire = Date.now() + 10 * 60 * 1000;
 
   return resetToken;
+};
+
+// Virtual: is account currently locked?
+userSchema.virtual('isLocked').get(function () {
+  return !!(this.lockUntil && this.lockUntil > Date.now());
+});
+
+// Increment failed login counter; lock after 5 failures for 30 min
+userSchema.methods.incrementLoginAttempts = async function () {
+  // If a previous lock has already expired, reset the counter
+  if (this.lockUntil && this.lockUntil < Date.now()) {
+    return this.updateOne({
+      $set:   { loginAttempts: 1 },
+      $unset: { lockUntil: 1 },
+    });
+  }
+
+  const updates = { $inc: { loginAttempts: 1 } };
+
+  // Lock on the 5th consecutive failure (30 minutes)
+  if (this.loginAttempts + 1 >= 5 && !this.isLocked) {
+    updates.$set = { lockUntil: new Date(Date.now() + 30 * 60 * 1000) };
+  }
+
+  return this.updateOne(updates);
+};
+
+// Clear counter on successful login
+userSchema.methods.clearLoginAttempts = async function () {
+  return this.updateOne({
+    $set:   { loginAttempts: 0 },
+    $unset: { lockUntil: 1 },
+  });
 };
 
 module.exports = mongoose.model('User', userSchema);

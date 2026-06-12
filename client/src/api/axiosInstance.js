@@ -5,30 +5,18 @@ const axiosInstance = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
+  // Browser automatically attaches the HTTP-only auth cookie on every request
   withCredentials: true,
 });
 
-// Request interceptor to add the token
-axiosInstance.interceptors.request.use(
-  (config) => {
-    const token = localStorage.getItem('token');
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
-    return config;
-  },
-  (error) => {
-    return Promise.reject(error);
-  }
-);
-
-// Response interceptor to handle errors globally
+// Response interceptor — handle 401 globally (cookie expired / invalid)
 axiosInstance.interceptors.response.use(
   (response) => response,
   (error) => {
+    // Cookie is expired or missing — the store's checkAuth will handle clearing state
     if (error.response?.status === 401) {
-      // Unauthorized - clear store and redirect to login if needed
-      localStorage.removeItem('token');
+      // Dispatch a custom event so the store can react without circular imports
+      window.dispatchEvent(new Event('auth:unauthorized'));
     }
     return Promise.reject(error);
   }

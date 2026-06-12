@@ -1,4 +1,5 @@
 const express = require('express');
+const helmet = require('helmet');
 const cors = require('cors');
 const dotenv = require('dotenv');
 const cookieParser = require('cookie-parser');
@@ -22,7 +23,8 @@ const reviewRoutes = require('./routes/reviewRoutes');
 const app = express();
 
 // Middleware
-app.use(express.json());
+app.use(helmet());
+app.use(express.json({ limit: '10kb' }));
 app.use(cookieParser());
 app.use(cors({
   origin: [process.env.CLIENT_URL || 'http://localhost:5173', 'http://localhost:5174'],

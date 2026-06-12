@@ -9,8 +9,15 @@ exports.getItems = async (req, res, next) => {
   try {
     const { select, sort, page, limit, search, dateFrom, dateTo, ...rest } = req.query;
 
-    // Build base filter from remaining query params (supports gt/gte/lt/lte/in)
-    let queryStr = JSON.stringify(rest);
+    // Whitelist allowed filter fields to prevent NoSQL injection via req.query
+    const ALLOWED_FILTERS = ['status', 'category'];
+    const safeRest = {};
+    ALLOWED_FILTERS.forEach(key => {
+      if (rest[key] !== undefined) safeRest[key] = rest[key];
+    });
+
+    // Build base filter — only from whitelisted fields
+    let queryStr = JSON.stringify(safeRest);
     queryStr = queryStr.replace(/\b(gt|gte|lt|lte|in)\b/g, m => `$${m}`);
     const parsedQuery = JSON.parse(queryStr);
 

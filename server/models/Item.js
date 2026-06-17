@@ -56,6 +56,13 @@ const ItemSchema = new mongoose.Schema({
     phone: String,
     email: String
   },
+  // Tracks every "I Found This Item" request — used for dedup and daily-limit checks
+  contactRequests: [
+    {
+      user: { type: mongoose.Schema.ObjectId, ref: 'User' },
+      requestedAt: { type: Date, default: Date.now },
+    }
+  ],
   createdAt: {
     type: Date,
     default: Date.now

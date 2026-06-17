@@ -229,7 +229,22 @@ export default function ItemDetail() {
       setContactInfo(res.data);
       toast.success('Contact details revealed! The reporter has been notified.');
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Could not fetch contact details.');
+      const status = err?.response?.status;
+      // Surface the specific gate message from the server when available
+      const msg = err?.response?.data?.error || err?.response?.data?.message || err.message;
+
+      if (status === 403) {
+        // Gate 1 (unverified email) or Gate 2 (account too new)
+        toast.error(msg || 'You must have a verified account to use this feature.');
+      } else if (status === 409) {
+        // Gate 3 — already contacted this item
+        toast.error('You already submitted a contact request for this item.');
+      } else if (status === 429) {
+        // Gate 4 (daily limit) or Gate 5 (HTTP rate limit)
+        toast.error(msg || 'You have reached the contact limit. Please try again later.');
+      } else {
+        toast.error('Could not fetch contact details. Please try again.');
+      }
     } finally {
       setContactLoading(false);
     }

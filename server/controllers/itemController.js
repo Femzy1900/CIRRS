@@ -201,8 +201,49 @@ exports.contactItem = async (req, res, next) => {
       throw new Error('You cannot contact yourself');
     }
 
-    // Get finder info for the notification
-    const finder = await User.findById(req.user.id).select('fullName username email phone');
+    // ── Anti-fraud gates ─────────────────────────────────────────────────────
+    // Fetch finder's full profile once (reused for gates + notification)
+    const finder = await User.findById(req.user.id).select('fullName username email phone isVerified createdAt');
+
+    // Gate 1 — verified email required
+    if (!finder.isVerified) {
+      res.status(403);
+      throw new Error('Please verify your email address before using this feature.');
+    }
+
+    // Gate 2 — account must be at least 24 hours old
+    const accountAgeHours = (Date.now() - new Date(finder.createdAt).getTime()) / 3_600_000;
+    if (accountAgeHours < 24) {
+      res.status(403);
+      throw new Error('Your account must be at least 24 hours old to contact item reporters.');
+    }
+
+    // Gate 3 — cannot contact the same item twice
+    const alreadyContacted = item.contactRequests.some(
+      r => r.user.toString() === req.user.id
+    );
+    if (alreadyContacted) {
+      res.status(409);
+      throw new Error('You have already submitted a contact request for this item.');
+    }
+
+    // Gate 4 — max 3 contact requests per user per 24 hours (across all items)
+    const oneDayAgo = new Date(Date.now() - 86_400_000);
+    const todayCount = await Item.countDocuments({
+      contactRequests: {
+        $elemMatch: { user: req.user.id, requestedAt: { $gte: oneDayAgo } },
+      },
+    });
+    if (todayCount >= 3) {
+      res.status(429);
+      throw new Error('You can contact at most 3 item reporters per day. Please try again tomorrow.');
+    }
+
+    // All gates passed — record this request
+    item.contactRequests.push({ user: req.user.id });
+    await item.save();
+    // ── End of anti-fraud gates ──────────────────────────────────────────────
+
     const finderName = finder?.fullName || finder?.username || 'Someone';
 
     // Notify the poster — include finder's contact in meta so the poster can see it

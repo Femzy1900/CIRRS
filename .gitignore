@@ -33,3 +33,6 @@ Thumbs.db
 # Coverage
 coverage/
 .nyc_output/
+
+# Firebase service account — contains private key, NEVER commit
+server/config/firebase-service-account.json

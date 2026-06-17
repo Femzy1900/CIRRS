@@ -3,40 +3,43 @@ const dotenv = require('dotenv');
 const path = require('path');
 const User = require('../models/User');
 
-// Load env variables
 dotenv.config({ path: path.join(__dirname, '../.env') });
 
-const emailToPromote = 'adedokunfemi14@gmail.com';
+const SUPER_ADMIN_EMAIL = process.env.SUPER_ADMIN_EMAIL || 'adedokunfemi14@gmail.com';
 
-const makeAdmin = async () => {
+const makeSuperAdmin = async () => {
   try {
     if (!process.env.MONGO_URI) {
-      console.error('MONGO_URI is not defined in the environment variables');
+      console.error('MONGO_URI is not defined');
       process.exit(1);
     }
 
     console.log('Connecting to database...');
     await mongoose.connect(process.env.MONGO_URI);
-    console.log('Database connected successfully.');
+    console.log('Connected.\n');
 
-    const user = await User.findOne({ email: emailToPromote });
+    const user = await User.findOne({ email: SUPER_ADMIN_EMAIL });
 
     if (!user) {
-      console.log(`User with email "${emailToPromote}" not found in the database.`);
-      console.log('Please ensure the user has signed up first.');
+      console.log(`⚠  No user found with email "${SUPER_ADMIN_EMAIL}".`);
+      console.log('   Register with that email first (via the app), then run this script.\n');
       process.exit(0);
     }
 
     user.role = 'admin';
-    user.isVerified = true; // Auto-verify the admin as well for convenience
+    user.isSuperAdmin = true;
+    user.isVerified = true;
     await user.save();
 
-    console.log(`Successfully promoted ${user.username} (${emailToPromote}) to admin!`);
+    console.log(`✅  ${user.fullName} (${SUPER_ADMIN_EMAIL}) is now the SUPER ADMIN!`);
+    console.log('   role         → admin');
+    console.log('   isSuperAdmin → true');
+    console.log('   isVerified   → true');
     process.exit(0);
   } catch (error) {
-    console.error('Error promoting user:', error);
+    console.error('Error:', error.message);
     process.exit(1);
   }
 };
 
-makeAdmin();
+makeSuperAdmin();

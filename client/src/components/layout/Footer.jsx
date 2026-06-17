@@ -3,11 +3,11 @@ import { Mail, Phone, MapPin, Instagram, Twitter, Facebook } from 'lucide-react'
 
 export default function Footer() {
   return (
-    <footer className="bg-[#010a1a] text-slate-400 pt-24 pb-12 border-t border-white/5 relative overflow-hidden">
+    <footer className="bg-[#010a1a] text-slate-400 pt-12 sm:pt-24 pb-8 sm:pb-12 border-t border-white/5 relative overflow-hidden">
       <div className="absolute bottom-0 right-0 w-[400px] h-[400px] bg-brand-blue/10 rounded-full blur-[120px] -z-10"></div>
       
       <div className="container mx-auto px-4">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-16 mb-20">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 sm:gap-16 mb-10 sm:mb-20">
           {/* Brand */}
           <div className="space-y-8">
             <div className="flex items-center gap-3">

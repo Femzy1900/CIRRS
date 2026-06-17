@@ -1,35 +1,30 @@
-const jwt = require('jsonwebtoken');
+const { getAuth } = require('../config/firebase');
 const User = require('../models/User');
 
+// Verify Firebase ID token and attach MongoDB user to req
 exports.protect = async (req, res, next) => {
   let token;
 
-  if (
-    req.headers.authorization &&
-    req.headers.authorization.startsWith('Bearer')
-  ) {
-    // Set token from Bearer token in header
+  if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
     token = req.headers.authorization.split(' ')[1];
-  } else if (req.cookies.token) {
-    // Set token from cookie
-    token = req.cookies.token;
   }
 
-  // Make sure token exists
   if (!token) {
     res.status(401);
     return next(new Error('Not authorized to access this route'));
   }
 
   try {
-    // Verify token
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    // Verify Firebase token
+    const decoded = await getAuth().verifyIdToken(token);
+    req.firebaseUser = decoded; // { uid, email, email_verified, ... }
 
-    req.user = await User.findById(decoded.id);
+    // Find MongoDB user by Firebase UID
+    req.user = await User.findOne({ firebaseUid: decoded.uid });
 
     if (!req.user) {
       res.status(401);
-      return next(new Error('User no longer exists'));
+      return next(new Error('Account not found. Please log in again.'));
     }
 
     next();
@@ -39,15 +34,25 @@ exports.protect = async (req, res, next) => {
   }
 };
 
-// Grant access to specific roles
+// Grant access to specific roles (super admin always passes)
 exports.authorize = (...roles) => {
   return (req, res, next) => {
+    if (req.user.isSuperAdmin) return next();
     if (!roles.includes(req.user.role)) {
       res.status(403);
       return next(
-        new Error(`User role ${req.user.role} is not authorized to access this route`)
+        new Error(`User role '${req.user.role}' is not authorized to access this route`)
       );
     }
     next();
   };
+};
+
+// Super admin only
+exports.requireSuperAdmin = (req, res, next) => {
+  if (!req.user.isSuperAdmin) {
+    res.status(403);
+    return next(new Error('Only the super admin can perform this action'));
+  }
+  next();
 };

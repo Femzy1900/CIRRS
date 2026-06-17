@@ -2,7 +2,6 @@ const express = require('express');
 const helmet = require('helmet');
 const cors = require('cors');
 const dotenv = require('dotenv');
-const cookieParser = require('cookie-parser');
 const morgan = require('morgan');
 const connectDB = require('./config/db');
 
@@ -25,7 +24,6 @@ const app = express();
 // Middleware
 app.use(helmet());
 app.use(express.json({ limit: '10kb' }));
-app.use(cookieParser());
 app.use(cors({
   origin: [process.env.CLIENT_URL || 'http://localhost:5173', 'http://localhost:5174'],
   credentials: true
@@ -51,6 +49,12 @@ app.get('/', (req, res) => {
 // Error Handling Middleware
 app.use((err, req, res, next) => {
   const statusCode = res.statusCode === 200 ? 500 : res.statusCode;
+
+  // Always log errors server-side so they're visible in the terminal
+  console.error(`[ERROR] ${req.method} ${req.originalUrl} → ${statusCode}`);
+  console.error(err.message);
+  if (statusCode === 500) console.error(err.stack);
+
   res.status(statusCode).json({
     message: err.message,
     stack: process.env.NODE_ENV === 'production' ? null : err.stack,

@@ -45,6 +45,12 @@ const ItemSchema = new mongoose.Schema({
     ref: 'User',
     required: true
   },
+  // Risk level is auto-assigned from category on every save/update
+  riskLevel: {
+    type: String,
+    enum: ['LOW', 'MEDIUM', 'HIGH'],
+    default: 'LOW'
+  },
   verificationQuestions: [VerificationQuestionSchema],
   contactInfo: {
     phone: String,
@@ -55,6 +61,37 @@ const ItemSchema = new mongoose.Schema({
     default: Date.now
   }
 });
+
+// ── Auto-assign riskLevel on document.save() ──────────────────────────────
+ItemSchema.pre('save', function () {
+  assignRiskLevel(this.category, this);
+});
+
+// ── Auto-assign riskLevel on findOneAndUpdate() (e.g. edit post) ──────────
+ItemSchema.pre('findOneAndUpdate', function () {
+  const update   = this.getUpdate();
+  const category = update?.category || update?.$set?.category;
+  if (category) {
+    const riskLevel = getRiskLevel(category);
+    if (update.$set) {
+      update.$set.riskLevel = riskLevel;
+    } else {
+      update.riskLevel = riskLevel;
+    }
+  }
+});
+
+function getRiskLevel(category) {
+  const HIGH_RISK = ['Money', 'Cards'];
+  const MED_RISK  = ['Electronics', 'Documents', 'Bags'];
+  if (HIGH_RISK.includes(category))  return 'HIGH';
+  if (MED_RISK.includes(category))  return 'MEDIUM';
+  return 'LOW';
+}
+
+function assignRiskLevel(category, doc) {
+  doc.riskLevel = getRiskLevel(category);
+}
 
 // Text index to enable search and matching algorithms
 ItemSchema.index({ title: 'text', description: 'text' });

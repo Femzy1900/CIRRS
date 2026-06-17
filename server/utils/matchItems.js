@@ -1,14 +1,14 @@
 /**
  * CIRS Item Matching Engine
  *
- * Scoring (max meaningful score ~14):
+ * Scoring (max meaningful score ~21):
  *   +3  same category (always true — pre-filtered)
- *   +3  date ≤ 3 days apart | +2 ≤7d | +1 ≤14d  (>14d → skip)
+ *   +3  date ≤ 3 days apart | +2 ≤7d | +1 ≤14d | +1 ≤30d  (>30d → skip)
  *   +2  per matching title keyword (max 4 → max +8)
  *   +1  per matching description keyword (max 3 → max +3)
  *   +2  per matching location keyword (max 2 → max +4)
  *
- * Threshold to notify: score ≥ 6
+ * Threshold to notify: score ≥ 4
  * Max 3 notifications sent per new item posted.
  */
 
@@ -44,10 +44,11 @@ function scoreMatch(newItem, candidate) {
     new Date(newItem.date).getTime() - new Date(candidate.date).getTime()
   ) / (1000 * 60 * 60 * 24);
 
-  if (daysDiff > 14) return 0;
-  if (daysDiff <= 3) score += 3;
-  else if (daysDiff <= 7) score += 2;
-  else score += 1;
+  if (daysDiff > 30) return 0;       // skip pairs more than 30 days apart
+  if (daysDiff <= 3)  score += 3;
+  else if (daysDiff <= 7)  score += 2;
+  else if (daysDiff <= 14) score += 1;
+  else                     score += 1; // 15–30 days: still a weak signal
 
   // Title keyword overlap (weight ×2, capped at 4 matches)
   score += Math.min(overlap(newItem.title, candidate.title), 4) * 2;
@@ -134,7 +135,7 @@ async function runMatchingForItem(newItem, clientUrl = 'http://localhost:5173') 
     // Score every candidate
     const scored = candidates
       .map(c => ({ item: c, score: scoreMatch(newItem, c) }))
-      .filter(s => s.score >= 6)
+      .filter(s => s.score >= 4)
       .sort((a, b) => b.score - a.score)
       .slice(0, 3); // top 3 only
 
@@ -189,7 +190,7 @@ async function runMatchingForItem(newItem, clientUrl = 'http://localhost:5173') 
       }).catch(err => console.error('[MatchEngine] Email failed:', err));
     }
 
-    // Also notify the NEW item's poster if there are matches on the other side
+    // Also notify the NEW item's poster if there are matches on the other side (in-app + email)
     if (scored.length > 0 && newItem.postedBy?.email) {
       const newItemPosterUserId = newItem.postedBy._id || newItem.postedBy;
       const alreadyNotifiedPoster = await Notification.findOne({
@@ -208,6 +209,7 @@ async function runMatchingForItem(newItem, clientUrl = 'http://localhost:5173') 
           ? `${scored.length} lost report(s) match the "${newItem.title}" you found. They may contact you soon.`
           : `The "${bestMatch.title}" (${bestMatch.location}) may be your lost "${newItem.title}". Check it out!`;
 
+        // In-app notification
         await Notification.create({
           user: newItemPosterUserId,
           type: 'match_found',
@@ -215,6 +217,22 @@ async function runMatchingForItem(newItem, clientUrl = 'http://localhost:5173') 
           message: notifyMsg,
           link: `/item/${bestMatch._id}`,
         });
+
+        // Email notification for the new item's poster
+        const emailHtml = buildEmailHtml({
+          recipientName: newItem.postedBy.fullName,
+          yourItem: newItem,
+          matchedItem: bestMatch,
+          matchedItemStatus: bestMatch.status,
+          matchUrl: `${clientUrl}/item/${bestMatch._id}`,
+        });
+
+        await sendEmail({
+          email: newItem.postedBy.email,
+          subject: notifyTitle,
+          message: notifyMsg,
+          html: emailHtml,
+        }).catch(err => console.error('[MatchEngine] Email to new poster failed:', err.message));
       }
     }
 

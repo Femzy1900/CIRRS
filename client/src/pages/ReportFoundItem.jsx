@@ -6,7 +6,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import {
   Package, MapPin, Calendar, Tag, Image as ImageIcon,
   Send, ArrowLeft, Info, Plus, Upload, Trash2,
-  AlertTriangle, ShieldCheck, Lightbulb, Eye, EyeOff
+  AlertTriangle, ShieldCheck, Lightbulb
 } from 'lucide-react';
 import useItemStore from '../store/useItemStore';
 import uploadApi from '../api/uploadApi';
@@ -80,6 +80,26 @@ const CATEGORY_CONFIG = {
       { q: 'Describe any physical damage or sticker on the device.', a: '' },
     ],
   },
+  'Personal Effects': {
+    level: 'info',
+    title: '🧴 Personal Effects Found',
+    warning: 'Ask about colour, brand, and any unique personal markings like engravings or labels.',
+    suggestions: [
+      { q: 'What is the colour of the item?', a: '' },
+      { q: 'What brand or type of item is it?', a: '' },
+      { q: 'Describe any unique markings, engravings, or features on it.', a: '' },
+    ],
+  },
+  Other: {
+    level: 'info',
+    title: '📦 Found Item',
+    warning: 'Set specific questions that only the real owner could answer — avoid generic questions.',
+    suggestions: [
+      { q: 'What colour is the item?', a: '' },
+      { q: 'Describe the item in as much detail as possible.', a: '' },
+      { q: 'Is there anything written, printed, or attached to the item that identifies it?', a: '' },
+    ],
+  },
 };
 
 const schema = z.object({
@@ -98,7 +118,6 @@ export default function ReportFoundItem() {
   const [loading, setLoading] = useState(false);
   const [preview, setPreview] = useState(null);
   const [imageFile, setImageFile] = useState(null);
-  const [revealAnswers, setRevealAnswers] = useState({});
 
   const [questions, setQuestions] = useState([
     { question: '', answer: '' },
@@ -136,10 +155,6 @@ export default function ReportFoundItem() {
     const updated = [...questions];
     updated[index][field] = value;
     setQuestions(updated);
-  };
-
-  const toggleReveal = (index) => {
-    setRevealAnswers(prev => ({ ...prev, [index]: !prev[index] }));
   };
 
   const onSubmit = async (data) => {
@@ -204,7 +219,7 @@ export default function ReportFoundItem() {
             <ArrowLeft size={14} className="group-hover:-translate-x-1 transition-transform" />
             Back to Dashboard
           </Link>
-          <h1 className="text-4xl lg:text-5xl font-black text-white tracking-tighter leading-tight">
+          <h1 className="text-3xl sm:text-4xl lg:text-5xl font-black text-white tracking-tighter leading-tight">
             Report <span className="text-emerald-400">Found Item</span>
           </h1>
           <p className="text-slate-400 font-medium max-w-xl">
@@ -214,9 +229,9 @@ export default function ReportFoundItem() {
         <Badge variant="success" className="h-fit py-2 px-4 text-xs">Found Reporting Mode</Badge>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 sm:gap-12">
         <div className="lg:col-span-2">
-          <form className="glass-card p-10 rounded-[3rem] border-white/5 space-y-12" onSubmit={handleSubmit(onSubmit)}>
+          <form className="glass-card p-5 sm:p-10 rounded-[2rem] sm:rounded-[3rem] border-white/5 space-y-8 sm:space-y-12" onSubmit={handleSubmit(onSubmit)}>
 
             {/* ── Basic Details ── */}
             <div className="space-y-8">
@@ -225,7 +240,7 @@ export default function ReportFoundItem() {
                 Basic Details
               </h2>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-8">
                 <div className="md:col-span-2">
                   <InputField
                     label="What did you find?"
@@ -352,6 +367,8 @@ export default function ReportFoundItem() {
                           Question <span className="text-rose-500">*</span>
                         </label>
                         <input
+                          type="text"
+                          autoComplete="off"
                           className="input-field w-full"
                           placeholder="e.g. What color is the inner lining of the bag?"
                           value={q.question}
@@ -364,22 +381,14 @@ export default function ReportFoundItem() {
                           Correct Answer <span className="text-rose-500">*</span>
                           <span className="text-slate-600 normal-case ml-2 font-medium">(hidden from claimer)</span>
                         </label>
-                        <div className="relative">
-                          <input
-                            className="input-field w-full pr-12"
-                            type={revealAnswers[index] ? 'text' : 'password'}
-                            placeholder="Enter the correct answer"
-                            value={q.answer}
-                            onChange={(e) => handleQuestionChange(index, 'answer', e.target.value)}
-                          />
-                          <button
-                            type="button"
-                            onClick={() => toggleReveal(index)}
-                            className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 hover:text-brand-gold transition-colors"
-                          >
-                            {revealAnswers[index] ? <EyeOff size={16} /> : <Eye size={16} />}
-                          </button>
-                        </div>
+                        <input
+                          type="text"
+                          autoComplete="off"
+                          className="input-field w-full"
+                          placeholder="Enter the correct answer"
+                          value={q.answer}
+                          onChange={(e) => handleQuestionChange(index, 'answer', e.target.value)}
+                        />
                       </div>
                     </div>
                   </div>
@@ -409,7 +418,7 @@ export default function ReportFoundItem() {
         {/* Sidebar */}
         <div className="space-y-10">
           {/* Image Upload */}
-          <div className="glass-card p-10 rounded-[3rem] border-white/5 space-y-6">
+          <div className="glass-card p-6 sm:p-10 rounded-[2rem] sm:rounded-[3rem] border-white/5 space-y-6">
             <h3 className="text-sm font-black text-white uppercase tracking-widest flex items-center gap-3">
               <ImageIcon className="text-brand-gold" size={20} />
               Item Photo
@@ -424,7 +433,7 @@ export default function ReportFoundItem() {
             )}
             <div
               onClick={() => document.getElementById('image-upload').click()}
-              className="relative aspect-square rounded-3xl overflow-hidden border-2 border-dashed border-white/10 flex flex-col items-center justify-center bg-white/5 group hover:border-brand-gold/50 transition-all cursor-pointer"
+              className="relative aspect-square max-h-56 sm:max-h-none rounded-3xl overflow-hidden border-2 border-dashed border-white/10 flex flex-col items-center justify-center bg-white/5 group hover:border-brand-gold/50 transition-all cursor-pointer"
             >
               {preview ? (
                 <>
@@ -447,7 +456,7 @@ export default function ReportFoundItem() {
           </div>
 
           {/* Safety Tips */}
-          <div className="bg-amber-950/20 p-10 rounded-[3rem] border border-amber-900/30 backdrop-blur-sm">
+          <div className="bg-amber-950/20 p-6 sm:p-10 rounded-[2rem] sm:rounded-[3rem] border border-amber-900/30 backdrop-blur-sm">
             <h3 className="text-sm font-black text-amber-500 flex items-center gap-3 mb-8 uppercase tracking-widest">
               <Info size={20} />
               Safety First

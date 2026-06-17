@@ -3,18 +3,19 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { useNavigate, Link } from 'react-router-dom';
-import { 
-  Package, 
-  MapPin, 
-  Calendar, 
-  Tag, 
-  Image as ImageIcon, 
-  Send, 
-  ArrowLeft, 
+import {
+  Package,
+  MapPin,
+  Calendar,
+  Tag,
+  Image as ImageIcon,
+  Send,
+  ArrowLeft,
   Info,
   Plus,
   Upload
 } from 'lucide-react';
+import { toast } from 'sonner';
 import useItemStore from '../store/useItemStore';
 import uploadApi from '../api/uploadApi';
 import Button from '../components/ui/Button';
@@ -61,7 +62,7 @@ export default function ReportLostItem() {
       navigate('/dashboard');
     } catch (err) {
       setLoading(false);
-      console.error('Failed to submit lost item:', err);
+      toast.error(err.message || 'Failed to submit lost item. Please try again.');
     }
   };
 
@@ -83,7 +84,7 @@ export default function ReportLostItem() {
             <ArrowLeft size={14} className="group-hover:-translate-x-1 transition-transform" />
             Back to Dashboard
           </Link>
-          <h1 className="text-4xl lg:text-5xl font-black text-white tracking-tighter leading-tight">
+          <h1 className="text-3xl sm:text-4xl lg:text-5xl font-black text-white tracking-tighter leading-tight">
             Report <span className="text-rose-500">Lost Item</span>
           </h1>
           <p className="text-slate-400 font-medium max-w-xl">
@@ -93,10 +94,10 @@ export default function ReportLostItem() {
         <Badge variant="danger" className="h-fit py-2 px-4 text-xs">Lost Reporting Mode</Badge>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 sm:gap-12">
         <div className="lg:col-span-2">
-          <form className="glass-card p-10 rounded-[3rem] border-white/5 space-y-8" onSubmit={handleSubmit(onSubmit)}>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+          <form className="glass-card p-5 sm:p-10 rounded-[2rem] sm:rounded-[3rem] border-white/5 space-y-6 sm:space-y-8" onSubmit={handleSubmit(onSubmit)}>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-8">
               <div className="md:col-span-2">
                 <InputField
                   label="Item Title"
@@ -174,14 +175,14 @@ export default function ReportLostItem() {
 
         <div className="space-y-10">
            {/* Image Upload */}
-           <div className="glass-card p-10 rounded-[3rem] border-white/5 space-y-6">
+           <div className="glass-card p-6 sm:p-10 rounded-[2rem] sm:rounded-[3rem] border-white/5 space-y-6">
               <h3 className="text-sm font-black text-white uppercase tracking-widest flex items-center gap-3">
                 <ImageIcon className="text-brand-gold" size={20} />
                 Item Photo
               </h3>
-              <div 
+              <div
                 onClick={() => document.getElementById('image-upload').click()}
-                className="relative aspect-square rounded-3xl overflow-hidden border-2 border-dashed border-white/10 flex flex-col items-center justify-center bg-white/5 group hover:border-brand-gold/50 transition-all cursor-pointer"
+                className="relative aspect-square max-h-56 sm:max-h-none rounded-3xl overflow-hidden border-2 border-dashed border-white/10 flex flex-col items-center justify-center bg-white/5 group hover:border-brand-gold/50 transition-all cursor-pointer"
               >
                  {preview ? (
                    <>
@@ -210,7 +211,7 @@ export default function ReportLostItem() {
            </div>
 
            {/* Tips */}
-           <div className="bg-brand-blue/30 p-10 rounded-[3rem] border border-white/5 backdrop-blur-md">
+           <div className="bg-brand-blue/30 p-6 sm:p-10 rounded-[2rem] sm:rounded-[3rem] border border-white/5 backdrop-blur-md">
               <h3 className="text-sm font-black text-brand-gold flex items-center gap-3 mb-8 uppercase tracking-widest">
                 <Info size={20} />
                 Pro Tips

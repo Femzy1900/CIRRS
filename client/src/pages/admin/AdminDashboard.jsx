@@ -1,21 +1,26 @@
 import React, { useEffect, useState } from 'react';
 import useAdminStore from '../../store/useAdminStore';
 import useItemStore from '../../store/useItemStore';
-import { 
-  Users, 
-  Package, 
-  FileCheck, 
-  TrendingUp, 
-  ShieldAlert, 
-  UserMinus, 
-  ShieldCheck, 
+import useAuthStore from '../../store/useAuthStore';
+import {
+  Users,
+  Package,
+  FileCheck,
+  TrendingUp,
+  ShieldAlert,
+  UserMinus,
+  ShieldCheck,
   Trash2,
   Search,
   Filter,
   CheckCircle,
   XCircle,
   Eye,
-  Info
+  Info,
+  Crown,
+  Flag,
+  ArrowUpCircle,
+  Hourglass
 } from 'lucide-react';
 import Button from '../../components/ui/Button';
 import Badge from '../../components/ui/Badge';
@@ -23,26 +28,30 @@ import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
 
 export default function AdminDashboard() {
-  const { 
+  const {
     users,
     claims,
-    stats, 
-    loading: adminLoading, 
-    error: adminError, 
-    fetchStats, 
+    stats,
+    loading: adminLoading,
+    error: adminError,
+    fetchStats,
     fetchUsers,
     fetchClaims,
-    updateUserRole, 
-    deleteUser 
+    updateUserRole,
+    deleteUser
   } = useAdminStore();
 
   const { items, fetchItems, deleteItem } = useItemStore();
+  const { user: currentUser } = useAuthStore();
+  const isSuperAdmin = currentUser?.isSuperAdmin === true;
   const navigate = useNavigate();
 
   const [activeTab, setActiveTab] = useState('overview');
   const [userSearch, setUserSearch] = useState('');
   const [itemSearch, setItemSearch] = useState('');
   const [roleFilter, setRoleFilter] = useState('all');
+  const [flaggedClaims, setFlaggedClaims] = useState([]);
+  const [loadingFlagged, setLoadingFlagged] = useState(false);
 
   useEffect(() => {
     fetchStats();
@@ -50,6 +59,18 @@ export default function AdminDashboard() {
     fetchClaims();
     fetchItems();
   }, [fetchStats, fetchUsers, fetchClaims, fetchItems]);
+
+  // Load flagged claims when switching to that tab
+  useEffect(() => {
+    if (activeTab !== 'flagged') return;
+    setLoadingFlagged(true);
+    import('../../api/claimApi').then(mod => {
+      mod.default.getFlaggedClaims()
+        .then(res => setFlaggedClaims(res.data || []))
+        .catch(() => setFlaggedClaims([]))
+        .finally(() => setLoadingFlagged(false));
+    });
+  }, [activeTab]);
 
   // Handle promoting/demoting user
   const handleToggleRole = (userId, currentRole) => {
@@ -145,12 +166,20 @@ export default function AdminDashboard() {
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
         <div className="space-y-2">
-          <div className="inline-flex items-center gap-2 px-3 py-1 bg-brand-gold/10 border border-brand-gold/20 rounded-full text-brand-gold text-[10px] font-black uppercase tracking-wider">
-            <ShieldAlert size={12} />
-            Administrator Panel
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="inline-flex items-center gap-2 px-3 py-1 bg-brand-gold/10 border border-brand-gold/20 rounded-full text-brand-gold text-[10px] font-black uppercase tracking-wider">
+              <ShieldAlert size={12} />
+              Administrator Panel
+            </div>
+            {isSuperAdmin && (
+              <div className="inline-flex items-center gap-2 px-3 py-1 bg-amber-500/15 border border-amber-500/30 rounded-full text-amber-400 text-[10px] font-black uppercase tracking-wider">
+                <Crown size={12} />
+                Super Admin
+              </div>
+            )}
           </div>
-          <h1 className="text-4xl lg:text-5xl font-black text-white tracking-tighter leading-tight">
-            CIRRS <span className="text-brand-gold">Control Center</span>
+          <h1 className="text-3xl sm:text-4xl lg:text-5xl font-black text-white tracking-tighter leading-tight">
+            CIRS <span className="text-brand-gold">Control Center</span>
           </h1>
           <p className="text-slate-400 font-medium max-w-xl">
             Monitor activity, manage verified registrations, moderate reports, and oversee ownership claims.
@@ -165,6 +194,7 @@ export default function AdminDashboard() {
           { id: 'users', label: 'User Management', icon: Users },
           { id: 'items', label: 'Report Moderation', icon: Package },
           { id: 'claims', label: 'Claims Audit', icon: FileCheck },
+          { id: 'flagged', label: 'Flagged Claims', icon: Flag },
         ].map((tab) => (
           <button
             key={tab.id}
@@ -191,7 +221,7 @@ export default function AdminDashboard() {
       {activeTab === 'overview' && (
         <div className="space-y-12">
           {/* Stats Summary Grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-8">
             {[
               {
                 label: 'Total Registered Users',
@@ -226,7 +256,7 @@ export default function AdminDashboard() {
                 bg: 'bg-emerald-400/10'
               }
             ].map((stat, i) => (
-              <div key={i} className="glass-card p-8 rounded-[2.5rem] border-white/5 relative overflow-hidden group">
+              <div key={i} className="glass-card p-5 sm:p-8 rounded-[2rem] sm:rounded-[2.5rem] border-white/5 relative overflow-hidden group">
                 <div className={`absolute top-0 right-0 w-24 h-24 ${stat.bg} rounded-full blur-3xl -mr-10 -mt-10 opacity-50 group-hover:opacity-100 transition-opacity`}></div>
                 <div className="space-y-6 relative z-10">
                   <div className={`w-14 h-14 ${stat.bg} ${stat.color} rounded-2xl flex items-center justify-center border border-white/5 shadow-2xl`}>
@@ -242,7 +272,7 @@ export default function AdminDashboard() {
             ))}
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 sm:gap-12">
             {/* Quick User Log */}
             <div className="lg:col-span-2 space-y-6">
               <div className="flex items-center justify-between">
@@ -254,15 +284,20 @@ export default function AdminDashboard() {
               </div>
               
               <div className="glass-card rounded-[2.5rem] border-white/5 overflow-hidden">
-                <div className="p-8 space-y-6">
+                <div className="p-5 sm:p-8 space-y-6">
                   {users.slice(0, 4).map((user) => (
                     <div key={user._id} className="flex items-center justify-between py-4 border-b border-white/5 last:border-b-0 last:pb-0 first:pt-0">
                       <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 bg-gradient-to-br from-brand-blue to-brand-blue-dark rounded-xl flex items-center justify-center text-brand-gold font-black border border-white/10 shadow-lg">
-                          {user.fullName.charAt(0)}
+                        <div className={`w-12 h-12 rounded-xl flex items-center justify-center font-black border shadow-lg ${user.isSuperAdmin ? 'bg-gradient-to-br from-amber-500/30 to-amber-700/30 text-amber-400 border-amber-500/30' : 'bg-gradient-to-br from-brand-blue to-brand-blue-dark text-brand-gold border-white/10'}`}>
+                          {user.isSuperAdmin ? <Crown size={20} /> : user.fullName.charAt(0)}
                         </div>
                         <div>
-                          <p className="text-sm font-bold text-white leading-tight">{user.fullName}</p>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <p className="text-sm font-bold text-white leading-tight">{user.fullName}</p>
+                            {user.isSuperAdmin && (
+                              <span className="px-1.5 py-0.5 bg-amber-500/15 border border-amber-500/30 rounded-md text-[9px] font-black text-amber-400 uppercase tracking-wider">Super Admin</span>
+                            )}
+                          </div>
                           <p className="text-[10px] text-slate-500 font-semibold mt-1">@{user.username} • {user.email}</p>
                         </div>
                       </div>
@@ -282,7 +317,7 @@ export default function AdminDashboard() {
                 Action shortcuts
               </h3>
               
-              <div className="glass-card p-8 rounded-[2.5rem] border-white/5 space-y-6">
+              <div className="glass-card p-5 sm:p-8 rounded-[2rem] sm:rounded-[2.5rem] border-white/5 space-y-6">
                 <div className="p-6 bg-white/5 rounded-2xl border border-white/5 space-y-4">
                   <div className="flex items-center gap-3">
                     <ShieldCheck className="text-brand-gold" size={20} />
@@ -348,14 +383,19 @@ export default function AdminDashboard() {
                 <tbody>
                   {filteredUsers.length > 0 ? (
                     filteredUsers.map((user) => (
-                      <tr key={user._id} className="border-b border-white/5 hover:bg-white/2 transition-colors">
+                      <tr key={user._id} className={`border-b border-white/5 hover:bg-white/2 transition-colors ${user.isSuperAdmin ? 'bg-amber-500/5' : ''}`}>
                         <td className="p-6">
                           <div className="flex items-center gap-4">
-                            <div className="w-10 h-10 bg-gradient-to-br from-brand-blue to-brand-blue-dark rounded-xl flex items-center justify-center text-brand-gold font-black border border-white/10 shrink-0">
-                              {user.fullName.charAt(0)}
+                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-black border shrink-0 ${user.isSuperAdmin ? 'bg-gradient-to-br from-amber-500/30 to-amber-700/30 text-amber-400 border-amber-500/30' : 'bg-gradient-to-br from-brand-blue to-brand-blue-dark text-brand-gold border-white/10'}`}>
+                              {user.isSuperAdmin ? <Crown size={16} /> : user.fullName.charAt(0)}
                             </div>
                             <div>
-                              <p className="text-sm font-bold text-white leading-tight">{user.fullName}</p>
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <p className="text-sm font-bold text-white leading-tight">{user.fullName}</p>
+                                {user.isSuperAdmin && (
+                                  <span className="px-1.5 py-0.5 bg-amber-500/15 border border-amber-500/30 rounded-md text-[9px] font-black text-amber-400 uppercase tracking-wider">Super Admin</span>
+                                )}
+                              </div>
                               <p className="text-[10px] text-slate-500 font-semibold mt-1">@{user.username}</p>
                             </div>
                           </div>
@@ -373,20 +413,40 @@ export default function AdminDashboard() {
                         </td>
                         <td className="p-6 text-right">
                           <div className="flex items-center justify-end gap-3">
-                            <button
-                              onClick={() => handleToggleRole(user._id, user.role)}
-                              className="p-2 text-slate-400 hover:text-brand-gold hover:bg-white/5 rounded-xl border border-transparent hover:border-white/5 transition-all"
-                              title={user.role === 'admin' ? 'Demote to User' : 'Promote to Admin'}
-                            >
-                              <ShieldCheck size={18} />
-                            </button>
-                            <button
-                              onClick={() => handleDeleteUser(user._id, user.fullName)}
-                              className="p-2 text-slate-400 hover:text-rose-500 hover:bg-white/5 rounded-xl border border-transparent hover:border-white/5 transition-all"
-                              title="Delete Account"
-                            >
-                              <Trash2 size={18} />
-                            </button>
+                            {/* Role toggle — super admin only, and cannot change another super admin */}
+                            {isSuperAdmin && !user.isSuperAdmin ? (
+                              <button
+                                onClick={() => handleToggleRole(user._id, user.role)}
+                                className="p-2 text-slate-400 hover:text-brand-gold hover:bg-white/5 rounded-xl border border-transparent hover:border-white/5 transition-all"
+                                title={user.role === 'admin' ? 'Demote to User' : 'Promote to Admin'}
+                              >
+                                <ShieldCheck size={18} />
+                              </button>
+                            ) : !user.isSuperAdmin ? (
+                              <span
+                                className="p-2 text-slate-700 rounded-xl cursor-not-allowed"
+                                title="Only the super admin can change roles"
+                              >
+                                <ShieldCheck size={18} />
+                              </span>
+                            ) : null}
+                            {/* Delete — disabled for super admin */}
+                            {!user.isSuperAdmin ? (
+                              <button
+                                onClick={() => handleDeleteUser(user._id, user.fullName)}
+                                className="p-2 text-slate-400 hover:text-rose-500 hover:bg-white/5 rounded-xl border border-transparent hover:border-white/5 transition-all"
+                                title="Delete Account"
+                              >
+                                <Trash2 size={18} />
+                              </button>
+                            ) : (
+                              <span
+                                className="p-2 text-slate-700 rounded-xl cursor-not-allowed"
+                                title="Super admin account is protected"
+                              >
+                                <Trash2 size={18} />
+                              </span>
+                            )}
                           </div>
                         </td>
                       </tr>
@@ -485,18 +545,25 @@ export default function AdminDashboard() {
       {activeTab === 'claims' && (
         <div className="space-y-8 animate-fade-in">
           {/* Claims Overview */}
-          <div className="glass-card p-8 rounded-[2.5rem] border-white/5 flex flex-col md:flex-row items-center justify-between gap-6">
+          <div className="glass-card p-5 sm:p-8 rounded-[2rem] sm:rounded-[2.5rem] border-white/5 flex flex-col md:flex-row items-center justify-between gap-6">
             <div className="flex items-center gap-4">
               <div className="p-3 bg-purple-500/10 text-purple-400 border border-purple-500/20 rounded-2xl shrink-0">
                 <Info size={24} />
               </div>
               <div>
-                <h4 className="text-sm font-black text-white uppercase tracking-wider leading-tight">Verification claim reviews</h4>
+                <h4 className="text-sm font-black text-white uppercase tracking-wider leading-tight">Risk-Routed Claim Reviews</h4>
                 <p className="text-xs text-slate-400 font-medium mt-1">
-                  Admins can audit recovery claims where users answered security questions. Matches above 80% bypass manually checks.
+                  Claims are scored using answer accuracy, location, time, and detail quality. HIGH-risk or fraud-flagged claims require admin approval.
                 </p>
               </div>
             </div>
+            <button
+              onClick={() => setActiveTab('flagged')}
+              className="shrink-0 flex items-center gap-2 px-4 py-2 bg-red-500/10 text-red-400 border border-red-500/20 rounded-2xl text-xs font-black uppercase tracking-widest hover:bg-red-500/20 transition-colors"
+            >
+              <Flag size={14} />
+              View Flagged
+            </button>
           </div>
 
           {/* Claims List Table */}
@@ -506,65 +573,117 @@ export default function AdminDashboard() {
                 <thead>
                   <tr className="border-b border-white/5 bg-white/2 bg-opacity-[0.02]">
                     <th className="p-6 text-[10px] font-black uppercase tracking-widest text-slate-500">Claimant</th>
-                    <th className="p-6 text-[10px] font-black uppercase tracking-widest text-slate-500">Claimed Item</th>
-                    <th className="p-6 text-[10px] font-black uppercase tracking-widest text-slate-500">Accuracy Score</th>
-                    <th className="p-6 text-[10px] font-black uppercase tracking-widest text-slate-500">Verification Status</th>
-                    <th className="p-6 text-[10px] font-black uppercase tracking-widest text-slate-500 text-right">Approval Actions</th>
+                    <th className="p-6 text-[10px] font-black uppercase tracking-widest text-slate-500">Item / Risk</th>
+                    <th className="p-6 text-[10px] font-black uppercase tracking-widest text-slate-500">Composite Score</th>
+                    <th className="p-6 text-[10px] font-black uppercase tracking-widest text-slate-500">Status / Route</th>
+                    <th className="p-6 text-[10px] font-black uppercase tracking-widest text-slate-500 text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   {claims.length > 0 ? (
                     claims.map((claim) => {
-                      let correctCount = 0;
-                      let totalQuestions = claim.answers?.length || 0;
-                      claim.answers?.forEach(ans => {
-                        if (ans.isCorrect) correctCount++;
-                      });
-                      const score = totalQuestions > 0 ? Math.round((correctCount / totalQuestions) * 100) : 100;
+                      const composite = claim.compositeScore ?? Math.round(
+                        claim.answers?.length > 0
+                          ? (claim.answers.filter(a => a.isCorrect).length / claim.answers.length) * 100
+                          : 0
+                      );
+                      const isActionable = ['under_review', 'escalated', 'pending'].includes(claim.status) && !claim.passed;
+                      const riskLevel = claim.item?.riskLevel || 'LOW';
 
                       return (
-                        <tr key={claim._id} className="border-b border-white/5 hover:bg-white/2 transition-colors">
+                        <tr key={claim._id} className={`border-b border-white/5 hover:bg-white/2 transition-colors ${claim.isFlagged ? 'bg-red-950/10' : ''}`}>
                           <td className="p-6">
-                            <p className="text-sm font-bold text-white leading-tight">{claim.claimant?.fullName}</p>
-                            <p className="text-[10px] text-slate-500 font-semibold mt-1">@{claim.claimant?.username}</p>
+                            <div className="flex items-center gap-3">
+                              <div className="w-8 h-8 bg-brand-blue/50 rounded-xl flex items-center justify-center text-brand-gold font-black text-sm border border-white/10 shrink-0">
+                                {claim.claimant?.fullName?.charAt(0) || '?'}
+                              </div>
+                              <div>
+                                <p className="text-sm font-bold text-white leading-tight">{claim.claimant?.fullName}</p>
+                                <p className="text-[10px] text-slate-500 font-semibold mt-0.5">@{claim.claimant?.username}</p>
+                              </div>
+                            </div>
+                            {claim.isFlagged && (
+                              <div className="flex items-center gap-1 mt-2 text-[9px] text-red-400 font-black uppercase tracking-wider">
+                                <Flag size={9} />
+                                {claim.fraudFlags?.length} flag{claim.fraudFlags?.length !== 1 ? 's' : ''}
+                              </div>
+                            )}
                           </td>
                           <td className="p-6">
                             <p className="text-xs text-white font-bold">{claim.item?.title}</p>
-                            <p className="text-[10px] text-slate-500 font-semibold mt-1">Claimed on {new Date(claim.createdAt).toLocaleDateString()}</p>
+                            <div className="flex items-center gap-2 mt-1">
+                              <span className={`text-[9px] font-black uppercase px-1.5 py-0.5 rounded border ${
+                                riskLevel === 'HIGH'   ? 'text-rose-400 bg-rose-500/10 border-rose-500/20' :
+                                riskLevel === 'MEDIUM' ? 'text-amber-400 bg-amber-500/10 border-amber-500/20' :
+                                                          'text-emerald-400 bg-emerald-500/10 border-emerald-500/20'
+                              }`}>{riskLevel}</span>
+                              <span className="text-[10px] text-slate-500">{new Date(claim.createdAt).toLocaleDateString()}</span>
+                            </div>
                           </td>
                           <td className="p-6">
                             <div className="flex items-center gap-3">
-                              <div className="w-full bg-white/5 rounded-full h-1.5 max-w-[100px] border border-white/5 overflow-hidden">
-                                <div 
-                                  className={`h-full rounded-full ${score >= 80 ? 'bg-emerald-400' : 'bg-rose-400'}`}
-                                  style={{ width: `${score}%` }}
-                                ></div>
+                              <div className="w-full bg-white/5 rounded-full h-1.5 max-w-[80px] border border-white/5 overflow-hidden">
+                                <div
+                                  className={`h-full rounded-full ${composite >= 75 ? 'bg-emerald-400' : composite >= 50 ? 'bg-amber-400' : 'bg-rose-400'}`}
+                                  style={{ width: `${composite}%` }}
+                                />
                               </div>
-                              <span className={`text-xs font-black ${score >= 80 ? 'text-emerald-400' : 'text-rose-400'}`}>{score}%</span>
+                              <span className={`text-xs font-black ${composite >= 75 ? 'text-emerald-400' : composite >= 50 ? 'text-amber-400' : 'text-rose-400'}`}>
+                                {composite}%
+                              </span>
                             </div>
+                            <p className="text-[9px] text-slate-600 mt-1">{claim.score}/{claim.totalQuestions} correct answers</p>
                           </td>
                           <td className="p-6">
-                            <Badge variant={claim.status === 'approved' ? 'success' : claim.status === 'rejected' ? 'danger' : 'warning'}>
-                              {claim.status}
-                            </Badge>
+                            <div className="space-y-1.5">
+                              <Badge variant={
+                                claim.status === 'approved'    ? 'success' :
+                                claim.status === 'rejected'    ? 'danger' :
+                                claim.status === 'escalated'   ? 'accent' :
+                                                                  'warning'
+                              }>
+                                {claim.status === 'under_review' ? '⏳ under review' :
+                                 claim.status === 'escalated'    ? '⬆ escalated' : claim.status}
+                              </Badge>
+                              {claim.riskRoute && (
+                                <p className="text-[9px] text-slate-600 uppercase tracking-wider">{claim.riskRoute?.replace(/_/g, ' ')}</p>
+                              )}
+                            </div>
                           </td>
                           <td className="p-6 text-right">
-                            <div className="flex items-center justify-end gap-3">
+                            {isActionable ? (
+                              <div className="flex items-center justify-end gap-2">
+                                <button
+                                  onClick={() => handleUpdateClaim(claim._id, 'approved')}
+                                  className="p-2 text-slate-400 hover:text-emerald-400 hover:bg-white/5 rounded-xl border border-transparent hover:border-white/5 transition-all"
+                                  title="Approve"
+                                >
+                                  <CheckCircle size={18} />
+                                </button>
+                                <button
+                                  onClick={() => handleUpdateClaim(claim._id, 'rejected')}
+                                  className="p-2 text-slate-400 hover:text-rose-500 hover:bg-white/5 rounded-xl border border-transparent hover:border-white/5 transition-all"
+                                  title="Reject"
+                                >
+                                  <XCircle size={18} />
+                                </button>
+                                <button
+                                  onClick={() => navigate(`/item/${claim.item?._id}`)}
+                                  className="p-2 text-slate-400 hover:text-brand-gold hover:bg-white/5 rounded-xl border border-transparent hover:border-white/5 transition-all"
+                                  title="View Item"
+                                >
+                                  <Eye size={18} />
+                                </button>
+                              </div>
+                            ) : (
                               <button
-                                onClick={() => handleUpdateClaim(claim._id, 'approved')}
-                                className="p-2 text-slate-400 hover:text-emerald-400 hover:bg-white/5 rounded-xl border border-transparent hover:border-white/5 transition-all"
-                                title="Approve Claim"
+                                onClick={() => navigate(`/item/${claim.item?._id}`)}
+                                className="p-2 text-slate-400 hover:text-brand-gold hover:bg-white/5 rounded-xl border border-transparent hover:border-white/5 transition-all"
+                                title="View Item"
                               >
-                                <CheckCircle size={18} />
+                                <Eye size={18} />
                               </button>
-                              <button
-                                onClick={() => handleUpdateClaim(claim._id, 'rejected')}
-                                className="p-2 text-slate-400 hover:text-rose-500 hover:bg-white/5 rounded-xl border border-transparent hover:border-white/5 transition-all"
-                                title="Reject Claim"
-                              >
-                                <XCircle size={18} />
-                              </button>
-                            </div>
+                            )}
                           </td>
                         </tr>
                       );
@@ -580,6 +699,135 @@ export default function AdminDashboard() {
               </table>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* ── FLAGGED CLAIMS TAB ── */}
+      {activeTab === 'flagged' && (
+        <div className="space-y-8 animate-fade-in">
+          <div className="glass-card p-5 sm:p-8 rounded-[2rem] sm:rounded-[2.5rem] border-white/5 flex items-center gap-4">
+            <div className="p-3 bg-red-500/10 text-red-400 border border-red-500/20 rounded-2xl shrink-0">
+              <Flag size={24} />
+            </div>
+            <div>
+              <h4 className="text-sm font-black text-white uppercase tracking-wider">Fraud-Flagged Claims</h4>
+              <p className="text-xs text-slate-400 font-medium mt-1">
+                Claims automatically flagged by the fraud detection engine. Review carefully before approving or rejecting.
+              </p>
+            </div>
+          </div>
+
+          {loadingFlagged ? (
+            <div className="space-y-3">
+              {[1, 2, 3].map(i => <div key={i} className="h-24 bg-white/5 rounded-2xl animate-pulse" />)}
+            </div>
+          ) : flaggedClaims.length === 0 ? (
+            <div className="p-12 glass-card rounded-[2.5rem] border-white/5 text-center">
+              <div className="w-16 h-16 bg-emerald-500/10 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                <CheckCircle size={32} className="text-emerald-500" />
+              </div>
+              <p className="text-slate-400 font-black uppercase tracking-widest text-sm">No flagged claims</p>
+              <p className="text-slate-600 text-xs mt-2">All claims appear clean. Fraud detection has not raised any alerts.</p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {flaggedClaims.map(claim => (
+                <div key={claim._id} className="glass-card p-5 sm:p-8 rounded-[2rem] border-red-500/20 bg-red-950/10 space-y-4">
+                  <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+                    <div className="flex items-center gap-4">
+                      <div className="w-12 h-12 bg-red-500/10 rounded-2xl flex items-center justify-center border border-red-500/20 shrink-0">
+                        <Flag size={20} className="text-red-400" />
+                      </div>
+                      <div>
+                        <p className="text-white font-black">{claim.claimant?.fullName}</p>
+                        <p className="text-xs text-slate-500">@{claim.claimant?.username} · {claim.claimant?.email}</p>
+                      </div>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <p className="text-xs font-bold text-white">{claim.item?.title}</p>
+                      <span className={`text-[9px] font-black uppercase px-1.5 py-0.5 rounded border ${
+                        claim.item?.riskLevel === 'HIGH'   ? 'text-rose-400 bg-rose-500/10 border-rose-500/20' :
+                        claim.item?.riskLevel === 'MEDIUM' ? 'text-amber-400 bg-amber-500/10 border-amber-500/20' :
+                                                              'text-emerald-400 bg-emerald-500/10 border-emerald-500/20'
+                      }`}>{claim.item?.riskLevel || 'LOW'} risk</span>
+                    </div>
+                  </div>
+
+                  {/* Fraud flags */}
+                  <div className="p-4 bg-red-950/30 border border-red-500/20 rounded-2xl space-y-2">
+                    <p className="text-[10px] font-black text-red-400 uppercase tracking-widest">Detected Flags</p>
+                    <div className="flex flex-wrap gap-2">
+                      {claim.fraudFlags?.map((flag, i) => (
+                        <span key={i} className="px-2.5 py-1 bg-red-500/20 text-red-300 text-[10px] font-bold rounded-xl border border-red-500/20">
+                          {flag.replace(/_/g, ' ')}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Scores */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <p className="text-[9px] text-slate-500 uppercase tracking-widest font-black mb-1">Answers</p>
+                      <p className="text-sm font-black text-white">{claim.score}/{claim.totalQuestions} correct</p>
+                    </div>
+                    <div>
+                      <p className="text-[9px] text-slate-500 uppercase tracking-widest font-black mb-1">Composite Score</p>
+                      <p className={`text-sm font-black ${claim.compositeScore >= 75 ? 'text-emerald-400' : claim.compositeScore >= 50 ? 'text-amber-400' : 'text-rose-400'}`}>
+                        {claim.compositeScore ?? 'N/A'}/100
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Route reason */}
+                  {claim.routeReason && (
+                    <p className="text-[10px] text-slate-500 italic">{claim.routeReason}</p>
+                  )}
+
+                  {/* Actions */}
+                  {['under_review', 'escalated', 'pending'].includes(claim.status) && (
+                    <div className="flex gap-3 pt-2">
+                      <button
+                        onClick={async () => {
+                          try {
+                            const claimApiMod = (await import('../../api/claimApi')).default;
+                            await claimApiMod.updateClaimStatus(claim._id, 'approved', 'Approved by admin after fraud review');
+                            setFlaggedClaims(prev => prev.filter(c => c._id !== claim._id));
+                            fetchClaims(); fetchStats();
+                            toast.success('Claim approved.');
+                          } catch { toast.error('Failed to approve.'); }
+                        }}
+                        className="flex-1 py-2.5 bg-emerald-500/15 text-emerald-400 text-xs font-black rounded-2xl hover:bg-emerald-500 hover:text-white transition-colors border border-emerald-500/20"
+                      >
+                        ✓ Approve Anyway
+                      </button>
+                      <button
+                        onClick={async () => {
+                          try {
+                            const claimApiMod = (await import('../../api/claimApi')).default;
+                            await claimApiMod.updateClaimStatus(claim._id, 'rejected', 'Rejected by admin — fraud flags');
+                            setFlaggedClaims(prev => prev.filter(c => c._id !== claim._id));
+                            fetchClaims(); fetchStats();
+                            toast.success('Claim rejected.');
+                          } catch { toast.error('Failed to reject.'); }
+                        }}
+                        className="flex-1 py-2.5 bg-rose-500/15 text-rose-400 text-xs font-black rounded-2xl hover:bg-rose-500 hover:text-white transition-colors border border-rose-500/20"
+                      >
+                        ✗ Reject — Fraud
+                      </button>
+                      <button
+                        onClick={() => navigate(`/item/${claim.item?._id}`)}
+                        className="px-4 py-2.5 bg-white/5 text-slate-400 hover:text-brand-gold text-xs font-black rounded-2xl transition-colors border border-white/10"
+                        title="View item"
+                      >
+                        <Eye size={16} />
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
     </div>

@@ -20,7 +20,7 @@ exports.getUsers = async (req, res, next) => {
 
 // @desc    Update user role
 // @route   PUT /api/admin/users/:id/role
-// @access  Private/Admin
+// @access  Private/SuperAdmin only
 exports.updateUserRole = async (req, res, next) => {
   try {
     const user = await User.findById(req.params.id);
@@ -30,10 +30,16 @@ exports.updateUserRole = async (req, res, next) => {
       throw new Error('User not found');
     }
 
-    // Prevent admin from demoting themselves
+    // Prevent changing your own role
     if (user._id.toString() === req.user._id.toString()) {
       res.status(400);
       throw new Error('You cannot change your own role');
+    }
+
+    // Protect the super admin — no one can demote them
+    if (user.isSuperAdmin) {
+      res.status(403);
+      throw new Error('The super admin role cannot be changed');
     }
 
     const { role } = req.body;
@@ -66,10 +72,16 @@ exports.deleteUser = async (req, res, next) => {
       throw new Error('User not found');
     }
 
-    // Prevent admin from deleting themselves
+    // Prevent deleting yourself
     if (user._id.toString() === req.user._id.toString()) {
       res.status(400);
       throw new Error('You cannot delete your own account');
+    }
+
+    // Protect the super admin from deletion
+    if (user.isSuperAdmin) {
+      res.status(403);
+      throw new Error('The super admin account cannot be deleted');
     }
 
     // Cascade delete: remove user's items, claims, and notifications

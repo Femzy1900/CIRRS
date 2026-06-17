@@ -77,7 +77,7 @@ export default function Profile() {
             <ArrowLeft size={14} className="group-hover:-translate-x-1 transition-transform" />
             Back to Dashboard
           </Link>
-          <h1 className="text-4xl lg:text-5xl font-black text-white tracking-tighter leading-tight">
+          <h1 className="text-3xl sm:text-4xl lg:text-5xl font-black text-white tracking-tighter leading-tight">
             Account <span className="text-brand-gold">Profile</span>
           </h1>
           <p className="text-slate-400 font-medium max-w-xl">
@@ -89,10 +89,10 @@ export default function Profile() {
         </Button>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 sm:gap-12">
         {/* Profile Card */}
         <div className="lg:col-span-1 space-y-8">
-          <div className="glass-card p-10 rounded-[3rem] border-white/5 text-center relative overflow-hidden group">
+          <div className="glass-card p-6 sm:p-10 rounded-[2rem] sm:rounded-[3rem] border-white/5 text-center relative overflow-hidden group">
             <div className="absolute top-0 left-0 w-full h-32 bg-gradient-to-br from-brand-blue to-brand-blue-dark -z-10"></div>
             <div className="relative inline-block mx-auto mt-8">
               <div className="w-32 h-32 bg-slate-900 rounded-[2.5rem] border-4 border-[#020617] flex items-center justify-center text-brand-gold text-5xl font-black shadow-2xl relative z-10">
@@ -112,7 +112,7 @@ export default function Profile() {
           </div>
 
           {/* Security panel */}
-          <div className="bg-brand-blue/30 p-10 rounded-[3rem] border border-white/5 backdrop-blur-md space-y-6">
+          <div className="bg-brand-blue/30 p-6 sm:p-10 rounded-[2rem] sm:rounded-[3rem] border border-white/5 backdrop-blur-md space-y-6">
             <h3 className="text-sm font-black text-white uppercase tracking-widest flex items-center gap-3">
               <Lock className="text-brand-gold" size={18} />
               Security
@@ -135,8 +135,8 @@ export default function Profile() {
 
         {/* Edit Form */}
         <div className="lg:col-span-2 space-y-8">
-          <form className="glass-card p-10 rounded-[3rem] border-white/5 space-y-8" onSubmit={handleSave}>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+          <form className="glass-card p-6 sm:p-10 rounded-[2rem] sm:rounded-[3rem] border-white/5 space-y-6 sm:space-y-8" onSubmit={handleSave}>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-8">
               <div className="md:col-span-2">
                 <InputField
                   label="Full Name"
@@ -189,7 +189,7 @@ export default function Profile() {
 
           {/* Change Password Section */}
           {showPwSection && (
-            <div className="glass-card p-10 rounded-[3rem] border-white/5 space-y-8 animate-fade-in">
+            <div className="glass-card p-6 sm:p-10 rounded-[2rem] sm:rounded-[3rem] border-white/5 space-y-6 sm:space-y-8 animate-fade-in">
               <h3 className="text-lg font-black text-white uppercase tracking-widest flex items-center gap-3">
                 <Lock className="text-brand-gold" size={18} />
                 Change Password

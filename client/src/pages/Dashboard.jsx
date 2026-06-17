@@ -43,14 +43,14 @@ export default function Dashboard() {
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-8">
         <div className="space-y-2">
-          <h1 className="text-4xl lg:text-5xl font-black text-white tracking-tighter leading-tight">
+          <h1 className="text-3xl sm:text-4xl lg:text-5xl font-black text-white tracking-tighter leading-tight">
             Welcome back, <br /><span className="text-brand-gold">{user?.fullName || 'Student'}!</span>
           </h1>
           <p className="text-slate-400 font-medium max-w-xl">
             You have <span className="text-white font-bold">{activeReportsCount} lost report{activeReportsCount !== 1 ? 's' : ''}</span> and {unreadCount} new notification{unreadCount !== 1 ? 's' : ''} since your last visit.
           </p>
         </div>
-        <div className="flex items-center gap-4">
+        <div className="flex flex-wrap items-center gap-3 sm:gap-4">
            <Link to="/report-lost">
              <Button variant="secondary" size="lg" icon={Plus}>Lost Item</Button>
            </Link>
@@ -61,9 +61,9 @@ export default function Dashboard() {
       </div>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-8">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-8">
         {stats.map((stat, i) => (
-          <div key={i} className="glass-card p-8 rounded-[2.5rem] border-white/5 relative overflow-hidden group">
+          <div key={i} className="glass-card p-5 sm:p-8 rounded-[2rem] sm:rounded-[2.5rem] border-white/5 relative overflow-hidden group">
             <div className={`absolute top-0 right-0 w-24 h-24 ${stat.bg} rounded-full blur-3xl -mr-10 -mt-10 opacity-50 group-hover:opacity-100 transition-opacity`}></div>
             <div className="flex items-center gap-6 relative z-10">
               <div className={`w-16 h-16 ${stat.bg} ${stat.color} rounded-2xl flex items-center justify-center border border-white/5 shadow-2xl`}>
@@ -78,7 +78,7 @@ export default function Dashboard() {
         ))}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 sm:gap-12">
         {/* Recent Activity */}
         <div className="lg:col-span-2 space-y-8">
            <div className="flex items-center justify-between px-2">
@@ -97,8 +97,8 @@ export default function Dashboard() {
            <div className="grid grid-cols-1 gap-6">
               {itemsLoading ? (
                 Array.from({ length: 2 }).map((_, i) => (
-                  <div key={i} className="glass-card p-6 rounded-[2rem] border-white/5 flex gap-8 animate-pulse">
-                    <div className="w-32 h-32 rounded-2xl bg-white/5 shrink-0" />
+                  <div key={i} className="glass-card p-6 rounded-[2rem] border-white/5 flex gap-4 sm:gap-8 animate-pulse">
+                    <div className="w-20 h-20 sm:w-32 sm:h-32 rounded-2xl bg-white/5 shrink-0" />
                     <div className="flex-1 space-y-3 py-2">
                       <div className="h-3 bg-white/5 rounded-full w-1/4" />
                       <div className="h-5 bg-white/5 rounded-full w-1/2" />
@@ -130,9 +130,9 @@ export default function Dashboard() {
         </div>
 
         {/* Sidebar Cards */}
-        <div className="space-y-10">
+        <div className="space-y-6 sm:space-y-10">
            {/* Notifications */}
-           <div className="glass-card p-10 rounded-[3rem] space-y-8 border-white/5 relative overflow-hidden">
+           <div className="glass-card p-6 sm:p-10 rounded-[2rem] sm:rounded-[3rem] space-y-6 sm:space-y-8 border-white/5 relative overflow-hidden">
               <div className="absolute top-0 right-0 w-32 h-32 bg-brand-gold/5 rounded-full blur-3xl -mr-16 -mt-16"></div>
               <h2 className="text-xl font-black text-white uppercase tracking-widest flex items-center gap-3 relative z-10">
                 <Bell size={20} className="text-brand-gold" />
@@ -140,7 +140,7 @@ export default function Dashboard() {
               </h2>
               <div className="space-y-6 relative z-10">
                  {notifications.length > 0 ? notifications.slice(0, 3).map(notif => (
-                   <Link key={notif._id} to={notif.link || '/notifications'} className={`flex gap-5 pb-6 border-b border-white/5 transition-all ${!notif.read ? 'opacity-100 group cursor-pointer hover:bg-white/5 p-2 rounded-xl' : 'opacity-60 hover:opacity-100 p-2 rounded-xl hover:bg-white/5 transition-all'}`}>
+                   <Link key={notif._id} to={notif.link || '/notifications'} className={`flex gap-3 pb-6 border-b border-white/5 transition-all ${!notif.read ? 'opacity-100 group cursor-pointer hover:bg-white/5 p-2 rounded-xl' : 'opacity-60 hover:opacity-100 p-2 rounded-xl hover:bg-white/5 transition-all'}`}>
                       <div className={`w-2 h-2 rounded-full mt-2 shrink-0 ${!notif.read ? 'bg-brand-gold shadow-[0_0_10px_#FFD700]' : 'bg-slate-600'}`}></div>
                       <div>
                          <p className="text-sm text-slate-300 leading-relaxed font-medium">
@@ -162,7 +162,7 @@ export default function Dashboard() {
            </div>
 
            {/* Global Search Promo */}
-           <div className="bg-gradient-to-br from-slate-900 to-brand-blue/50 p-10 rounded-[3rem] border border-white/10 text-white space-y-6 relative overflow-hidden group shadow-2xl">
+           <div className="bg-gradient-to-br from-slate-900 to-brand-blue/50 p-6 sm:p-10 rounded-[2rem] sm:rounded-[3rem] border border-white/10 text-white space-y-6 relative overflow-hidden group shadow-2xl">
               <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-10"></div>
               <div className="relative z-10 space-y-6">
                 <div className="w-14 h-14 bg-brand-gold rounded-2xl flex items-center justify-center text-brand-blue-dark shadow-2xl group-hover:rotate-12 transition-transform">

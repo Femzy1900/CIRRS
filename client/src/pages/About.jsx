@@ -12,7 +12,7 @@ export default function About() {
       <div className="max-w-6xl mx-auto space-y-20">
         {/* Hero Section */}
         <div className="text-center space-y-6 animate-fade-in">
-          <h1 className="text-5xl md:text-7xl font-black text-white tracking-tighter leading-tight">
+          <h1 className="text-4xl md:text-7xl font-black text-white tracking-tighter leading-tight">
             About <span className="text-brand-gold">CIRS</span>
           </h1>
           <p className="max-w-2xl mx-auto text-lg text-slate-400 font-medium leading-relaxed">
@@ -22,31 +22,31 @@ export default function About() {
 
         {/* Features Grid */}
         <div className="grid md:grid-cols-3 gap-8">
-          <div className="glass-card p-8 rounded-[2rem] border-white/10 hover:border-brand-gold/30 transition-all duration-500 group">
-            <div className="bg-brand-blue/30 w-16 h-16 rounded-2xl flex items-center justify-center mb-6 border border-brand-blue/50 group-hover:scale-110 transition-transform">
-              <Shield className="text-brand-gold" size={32} />
+          <div className="glass-card p-5 sm:p-8 rounded-[1.5rem] sm:rounded-[2rem] border-white/10 hover:border-brand-gold/30 transition-all duration-500 group">
+            <div className="bg-brand-blue/30 w-14 h-14 sm:w-16 sm:h-16 rounded-2xl flex items-center justify-center mb-5 sm:mb-6 border border-brand-blue/50 group-hover:scale-110 transition-transform">
+              <Shield className="text-brand-gold" size={28} />
             </div>
-            <h3 className="text-xl font-black text-white mb-3">Secure Claims</h3>
+            <h3 className="text-lg sm:text-xl font-black text-white mb-3">Secure Claims</h3>
             <p className="text-sm text-slate-400 leading-relaxed">
               Our advanced verification system ensures that items are only returned to their rightful owners through mandatory proof-of-ownership questions.
             </p>
           </div>
 
-          <div className="glass-card p-8 rounded-[2rem] border-white/10 hover:border-brand-gold/30 transition-all duration-500 group">
-            <div className="bg-brand-blue/30 w-16 h-16 rounded-2xl flex items-center justify-center mb-6 border border-brand-blue/50 group-hover:scale-110 transition-transform delay-75">
-              <Users className="text-brand-gold" size={32} />
+          <div className="glass-card p-5 sm:p-8 rounded-[1.5rem] sm:rounded-[2rem] border-white/10 hover:border-brand-gold/30 transition-all duration-500 group">
+            <div className="bg-brand-blue/30 w-14 h-14 sm:w-16 sm:h-16 rounded-2xl flex items-center justify-center mb-5 sm:mb-6 border border-brand-blue/50 group-hover:scale-110 transition-transform delay-75">
+              <Users className="text-brand-gold" size={28} />
             </div>
-            <h3 className="text-xl font-black text-white mb-3">Community Driven</h3>
+            <h3 className="text-lg sm:text-xl font-black text-white mb-3">Community Driven</h3>
             <p className="text-sm text-slate-400 leading-relaxed">
               Powered by the campus community. Thousands of students helping each other recover lost valuables every single semester.
             </p>
           </div>
 
-          <div className="glass-card p-8 rounded-[2rem] border-white/10 hover:border-brand-gold/30 transition-all duration-500 group">
-            <div className="bg-brand-blue/30 w-16 h-16 rounded-2xl flex items-center justify-center mb-6 border border-brand-blue/50 group-hover:scale-110 transition-transform delay-150">
-              <Clock className="text-brand-gold" size={32} />
+          <div className="glass-card p-5 sm:p-8 rounded-[1.5rem] sm:rounded-[2rem] border-white/10 hover:border-brand-gold/30 transition-all duration-500 group">
+            <div className="bg-brand-blue/30 w-14 h-14 sm:w-16 sm:h-16 rounded-2xl flex items-center justify-center mb-5 sm:mb-6 border border-brand-blue/50 group-hover:scale-110 transition-transform delay-150">
+              <Clock className="text-brand-gold" size={28} />
             </div>
-            <h3 className="text-xl font-black text-white mb-3">Real-time Matching</h3>
+            <h3 className="text-lg sm:text-xl font-black text-white mb-3">Real-time Matching</h3>
             <p className="text-sm text-slate-400 leading-relaxed">
               Instantly browse recently found items, or get notified when someone reports finding an item that matches your lost report.
             </p>
@@ -54,7 +54,7 @@ export default function About() {
         </div>
 
         {/* Mission Section */}
-        <div className="glass-card p-10 md:p-16 rounded-[3rem] border-white/10 flex flex-col md:flex-row items-center gap-12">
+        <div className="glass-card p-6 md:p-16 rounded-[2rem] md:rounded-[3rem] border-white/10 flex flex-col md:flex-row items-center gap-8 md:gap-12">
           <div className="flex-1 space-y-6">
             <h2 className="text-3xl font-black text-white tracking-tighter">Our Mission</h2>
             <p className="text-slate-400 leading-relaxed">
@@ -78,7 +78,7 @@ export default function About() {
             <div className="aspect-square rounded-[2rem] bg-gradient-to-tr from-brand-blue to-[#020617] border border-white/10 p-8 shadow-2xl flex items-center justify-center relative overflow-hidden group">
               <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-10"></div>
               <div className="text-center z-10">
-                <div className="text-6xl font-black text-white mb-2">98%</div>
+                <div className="text-4xl sm:text-6xl font-black text-white mb-2">98%</div>
                 <div className="text-[10px] uppercase tracking-widest text-brand-gold font-bold">Recovery Rate<br/>for verified items</div>
               </div>
             </div>

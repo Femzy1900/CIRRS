@@ -1,0 +1,764 @@
+================================================================================
+  CIRS — CAMPUS ITEM RECOVERY SYSTEM
+  Complete Application Logic Reference
+  Last updated: June 2026
+================================================================================
+
+
+────────────────────────────────────────────────────────────────────────────────
+1. SYSTEM OVERVIEW
+────────────────────────────────────────────────────────────────────────────────
+
+CIRS is a MERN stack (MongoDB, Express, React, Node.js) web application that
+helps students and staff on a university campus report, find, and recover lost
+or found items.
+
+Tech Stack:
+  - Frontend  : React 18, Vite, Zustand (state), TailwindCSS, lucide-react icons
+  - Backend   : Node.js, Express 5
+  - Database  : MongoDB (Mongoose 9)
+  - Auth      : Firebase Authentication (Google + Email/Password) + MongoDB hybrid
+  - Images    : Cloudinary (via custom uploadApi)
+  - Emails    : Nodemailer + SMTP (Brevo/Resend)
+
+Core flows:
+  1. A user reports a LOST item
+  2. A user reports a FOUND item (with verification questions)
+  3. The matching engine links them automatically
+  4. The person who lost the item submits a CLAIM on the found item
+  5. Answers are graded, a composite score calculated, fraud checked
+  6. The claim is routed: AUTO-APPROVED or sent for FINDER/ADMIN REVIEW
+  7. On approval, the finder's contact details are released to the claimant
+  8. The finder marks the item as RESOLVED after physical handover
+
+
+────────────────────────────────────────────────────────────────────────────────
+2. AUTHENTICATION & AUTHORIZATION
+────────────────────────────────────────────────────────────────────────────────
+
+2.1  Firebase + MongoDB Hybrid
+-------------------------------
+- Firebase handles authentication (password hashing, session tokens, OAuth).
+- MongoDB stores the user profile (name, phone, faculty, role, etc.).
+- Every API request carries a Firebase ID Token in the Authorization header.
+
+  Flow:
+    Client → sends Firebase ID Token (JWT)
+           → server calls Firebase Admin SDK: getAuth().verifyIdToken(token)
+           → looks up MongoDB user by firebaseUid
+           → attaches req.user (MongoDB doc) for all controllers to use
+
+2.2  Registration / First Login (syncUser)
+-------------------------------------------
+  POST /api/auth/sync
+
+  Steps:
+    1. Verify Firebase token.
+    2. Search MongoDB for a user with the same firebaseUid.
+    3. If not found, search by email (handles existing accounts / migration).
+    4. If found by email only → link firebaseUid to that account.
+    5. If brand new → create MongoDB user document.
+       - fullName taken from request body, Firebase display name, or email prefix.
+       - Username auto-generated: lowercase base + random 3-digit suffix if taken.
+    6. If email matches SUPER_ADMIN_EMAIL env var → set role='admin', isSuperAdmin=true.
+    7. Return the MongoDB user document.
+
+2.3  Auth Middleware
+---------------------
+  protect       – Verifies Firebase token, attaches req.user. Used on all
+                  private routes. Returns 401 if token missing or invalid.
+
+  authorize()   – Role-based gate. Checks req.user.role against allowed roles.
+                  Super admin bypasses all role checks.
+
+  requireSuperAdmin – Hard gate for super-admin-only operations.
+
+2.4  User Roles
+----------------
+  user       – Standard registered user. Can post items, submit claims, manage
+               their own posts.
+  admin      – Can review all claims, see flagged claims, approve/reject/dispute
+               any claim, view audit logs. Set manually or by SUPER_ADMIN_EMAIL.
+  isSuperAdmin (boolean) – Highest privilege. Always passes role checks. Only
+               one user (set via env var SUPER_ADMIN_EMAIL).
+
+2.5  Profile Update
+--------------------
+  PUT /api/auth/updateprofile
+  - Updates fullName, username, phone, faculty, profileImage in MongoDB.
+  - If fullName changes, also updates Firebase display name via Admin SDK.
+
+2.6  Account Deletion
+----------------------
+  DELETE /api/auth/deleteaccount
+  - Deletes user from Firebase Auth.
+  - Deletes user document from MongoDB.
+
+
+────────────────────────────────────────────────────────────────────────────────
+3. ITEM MANAGEMENT
+────────────────────────────────────────────────────────────────────────────────
+
+3.1  Item Statuses (State Machine)
+------------------------------------
+  lost      → Item reported as lost. The reporter is the person who lost it.
+  found     → Item reported as found. The reporter is the person who found it.
+              Includes verification questions set by the finder.
+  claimed   → A claim on a found item was approved. Awaiting physical handover.
+  resolved  → Finder confirmed the physical handover. Item closed.
+
+  Status transitions:
+    lost    → (no transition from the item itself; claims aren't submitted on lost items)
+    found   → claimed   (when a claim is approved via submitClaim or updateClaimStatus)
+    claimed → resolved  (when the finder presses "Confirm Handover — Mark as Resolved")
+
+3.2  Item Categories
+---------------------
+  Electronics, Documents, Personal Effects, Keys, Bags, Money, Cards, Other
+
+3.3  Risk Level (auto-assigned on save/edit)
+---------------------------------------------
+  HIGH   → Money, Cards
+  MEDIUM → Electronics, Documents, Bags
+  LOW    → Personal Effects, Keys, Other
+
+  The riskLevel field is never set manually. It is automatically computed from
+  the category in a Mongoose pre-save hook and a pre-findOneAndUpdate hook.
+
+3.4  Verification Questions (found items only)
+-----------------------------------------------
+  When reporting a FOUND item, the finder sets 1–N question/answer pairs.
+  These are stored on the Item document as verificationQuestions[].
+  The correct answers are NEVER sent to the frontend — only questions are shown
+  on the SubmitClaim page.
+
+3.5  Creating an Item
+----------------------
+  POST /api/items (protected)
+
+  - Sets postedBy = req.user.id.
+  - Saves item (riskLevel auto-assigned in pre-save hook).
+  - Fetches populated item (postedBy: fullName, email, username, profileImage).
+  - Runs the matching engine in the background (non-blocking).
+  - Returns the populated item.
+
+3.6  Updating an Item
+----------------------
+  PUT /api/items/:id (protected)
+  - Only the poster or an admin can update.
+  - Returns populated item (postedBy fields included).
+  - riskLevel auto-reassigned if category changes (pre-findOneAndUpdate hook).
+
+3.7  Deleting an Item
+----------------------
+  DELETE /api/items/:id (protected)
+  - Only the poster or an admin can delete.
+
+3.8  Browsing & Filtering
+--------------------------
+  GET /api/items
+
+  Allowed filter params: status, category
+  Special pseudo-status 'active' → expands to { $in: ['lost', 'found'] }
+    (claimed and resolved items are hidden from the Browse page)
+
+  Additional params:
+    search   → regex match on title, description, location (case-insensitive)
+    dateFrom / dateTo → filters by item.date range
+    sort     → any field prefix with '-' for descending (default: -createdAt)
+    page / limit → pagination (max 50 per page, default 12)
+
+  Security: only 'status' and 'category' query params are allowed through to
+  the database query. All other query params are ignored to prevent NoSQL injection.
+
+
+────────────────────────────────────────────────────────────────────────────────
+4. MATCHING ENGINE (matchItems.js)
+────────────────────────────────────────────────────────────────────────────────
+
+Triggered automatically after every new item is created (runs in background).
+Purpose: find opposite-status items that may be the same physical object.
+
+4.1  Pre-filter (hard requirements — all must pass)
+----------------------------------------------------
+  1. Same category as the new item.
+  2. Opposite status: if new item is 'lost', look for 'found' items and vice versa.
+  3. Posted by a different user (not the same reporter).
+  4. Date gap ≤ 30 days. If gap > 30 days, score = 0 and item is skipped.
+
+4.2  Scoring Algorithm
+-----------------------
+  Every passing candidate gets a score. Base score starts at 3 (same category).
+
+  Date proximity:
+    ≤ 3 days apart   → +3
+    4–7 days apart   → +2
+    8–14 days apart  → +1
+    15–30 days apart → +1
+    > 30 days apart  → 0 (item excluded before scoring)
+
+  Title keyword overlap (keywords = words > 2 chars, stop words removed):
+    Each shared keyword → +2 (capped at 4 matching keywords → max +8)
+
+  Description keyword overlap:
+    Each shared keyword → +1 (capped at 3 matching keywords → max +3)
+
+  Location keyword overlap:
+    Each shared keyword → +2 (capped at 2 matching keywords → max +4)
+
+  Stop words ignored: a, an, the, is, was, are, were, in, on, at, to, for, of,
+    and, or, it, my, i, this, that, have, has, had, be, been, from, with, some,
+    any, one, two, three, no, not, by, as, up, do, its, he, she
+
+  Maximum possible score: ~21 points
+
+4.3  Threshold & Deduplication
+--------------------------------
+  Minimum score to trigger notification: 4
+
+  Deduplication: if a Notification already exists for the same user + type
+  'match_found' + same link, skip sending again (prevents spam on re-runs).
+
+  Maximum notifications per new item: top 3 scoring matches only.
+
+4.4  Who Gets Notified
+-----------------------
+  For each top match, TWO parties are notified:
+
+  A) The poster of the MATCHED (existing) item:
+     - In-app notification (type: match_found)
+     - Email with styled HTML showing both items side by side + "View Match" button
+     - Message depends on direction:
+         New item = found → "Someone found something like your lost item!"
+         New item = lost  → "Someone may be looking for what you found!"
+
+  B) The poster of the NEW item (just posted):
+     - In-app notification (type: match_found)
+     - Email (added later — same HTML template)
+     - Message: summary of how many matches were found, link to best match
+
+
+────────────────────────────────────────────────────────────────────────────────
+5. CLAIM SUBMISSION FLOW
+────────────────────────────────────────────────────────────────────────────────
+
+Only FOUND items can be claimed. The claimant is the person who believes
+the found item belongs to them.
+
+5.1  Guards (pre-submission checks)
+-------------------------------------
+  - Item must have status 'found' (or 'claimed' — allows late duplicate attempt
+    to be caught gracefully).
+  - Item must have at least one verification question.
+  - Claimant cannot be the finder (the item's poster).
+  - One claim per (item, claimant) pair — enforced by a unique MongoDB index.
+
+5.2  Answer Grading (fuzzyMatch.js)
+-------------------------------------
+  Each submitted answer is compared against the correct stored answer.
+
+  Comparison rules (in order):
+    1. Exact normalized match (lowercase, punctuation removed, spaces collapsed).
+    2. Strict numeric check: if correct answer contains any number, ALL those
+       numbers must be present exactly in the provided answer. "500" does NOT
+       match "1000". If numbers fail → answer is wrong, no fuzzy fallback.
+    3. Word-set match (order insensitive): every word in correct answer is
+       present in provided answer, or vice versa.
+    4. Levenshtein fuzzy: only applied if no numbers in correct answer AND
+       both strings ≤ 30 chars. Tolerance = max(1, floor(min_length × 0.25)).
+       This forgives small typos like "blck" → "black".
+
+  isPassing threshold:
+    Money / Cards categories → must get ALL questions correct (100%).
+    All other categories     → must get ≥ ceil(2/3 × total), minimum 2 correct.
+
+5.3  Composite Score (0–100)
+-----------------------------
+  A single weighted score that reflects the overall strength of the claim.
+
+  Components:
+    Answer accuracy   60%  → (correct / total) × 100
+    Location match    15%  → word-overlap between claimant's location hint
+                              and item's recorded location (0–100)
+    Time proximity    10%  → how close claimant's reported loss time is to
+                              item's found date:
+                                ≤ 24 hours  → 100
+                                ≤ 72 hours  → 75
+                                ≤ 1 week    → 45
+                                ≤ 30 days   → 20
+                                > 30 days   → 5
+                              If no time provided → 50 (neutral)
+    Detail quality    15%  → average character length of answers:
+                                ≥ 25 chars  → 100
+                                ≥ 12 chars  → 75
+                                ≥ 6 chars   → 45
+                                ≥ 2 chars   → 20
+                                < 2 chars   → 5
+
+  compositeScore = round(answer×0.60 + location×0.15 + time×0.10 + detail×0.15)
+  Clamped to 0–100.
+
+5.4  Fraud Detection (fraudDetection.js)
+-----------------------------------------
+  Four checks run on every claim submission. Returns an array of flag strings.
+
+  1. high_claim_frequency
+     → Claimant submitted 3 or more claims in the past 7 days.
+
+  2. repeated_failures
+     → Claimant had 2 or more REJECTED claims in the past 30 days.
+
+  3. low_quality_answers
+     → Average answer length < 3 characters (suggests random/blank answers).
+
+  4. location_mismatch
+     → Claimant provided a location hint AND it shares zero meaningful words
+        with the item's recorded location.
+        (Only flags if both location hint and item location have > 2-char words)
+
+  If any flags are raised → isFlagged = true → claim is escalated to ADMIN_REVIEW
+  regardless of score or risk level.
+
+5.5  Risk-Based Routing (riskRouter.js)
+-----------------------------------------
+  After scoring and fraud detection, the routing engine decides what happens:
+
+  Decision tree (checked in this order):
+
+  1. Category = Money or Cards?
+     → FINDER_REVIEW always. Never auto-approved, regardless of score.
+        Reason: Financial items are too sensitive for automated release.
+
+  2. Any fraud flags?
+     → ADMIN_REVIEW immediately.
+        Reason: Suspicious behaviour requires human oversight.
+
+  3. riskLevel = HIGH (Electronics, Documents, Bags)?
+     → ADMIN_REVIEW.
+        Reason: High-value items need admin verification before contact release.
+
+  4. riskLevel = MEDIUM (Electronics, Documents, Bags)?
+     → FINDER_REVIEW.
+        Reason: Finder knows the item best — their approval required.
+
+  5. riskLevel = LOW AND compositeScore ≥ 75?
+     → AUTO (auto-approved immediately).
+        Reason: Low-risk, high-confidence claim. Contact released instantly.
+
+  6. riskLevel = LOW AND compositeScore < 75?
+     → FINDER_REVIEW.
+        Reason: Score not high enough for auto-approval even on low-risk items.
+
+5.6  Claim Status State Machine
+---------------------------------
+  pending
+    → under_review  (when routed to FINDER_REVIEW or ADMIN_REVIEW)
+    → approved      (when routed to AUTO, or manually approved)
+
+  under_review
+    → approved      (finder or admin manually approves)
+    → rejected      (finder or admin manually rejects)
+    → escalated     (finder pushes to admin review)
+    → disputed      (admin marks as disputed — rare edge case)
+
+  approved and rejected are FINAL — cannot be changed.
+
+5.7  On AUTO Approval
+----------------------
+  Immediately when claim is created and route = AUTO:
+    - Item status set to 'claimed'.
+    - Claim status set to 'approved', passed = true.
+    - Finder notified (in-app): "Your item has been claimed!"
+    - Claimant notified (in-app): "Claim approved — check your email."
+    - Email to finder: item was claimed, arrange handover, then mark resolved.
+    - Email to claimant: finder's full name + email + phone (if set).
+    - finderContact returned in API response → shown immediately in UI.
+
+5.8  On FINDER_REVIEW
+----------------------
+  Claim saved with status 'under_review'.
+  - Finder notified (in-app): "New claim awaiting your review."
+  - Claimant notified (in-app): "Your claim is under review."
+  - Finder sees claim in their item detail page (Claims panel).
+  - Finder can: APPROVE → same as auto-approval above.
+                REJECT  → claimant notified, claim closed.
+                ESCALATE → pushed to ADMIN_REVIEW.
+
+5.9  On ADMIN_REVIEW
+---------------------
+  Claim saved with status 'under_review'.
+  - All admin users notified (in-app): "High-risk/flagged claim requires review."
+  - Claimant notified (in-app): "Your claim is under admin review."
+  - Admin can: APPROVE → same as auto-approval above.
+               REJECT  → claimant notified.
+               DISPUTE → marks claim as disputed for further investigation.
+
+5.10  Audit Trail
+------------------
+  Every status change appends an entry to claim.auditLog:
+    { action, actor (userId), actorRole ('system'|'finder'|'admin'), note, timestamp }
+
+  Actions logged: submitted, auto_approved, approved, rejected, escalated, disputed.
+
+
+────────────────────────────────────────────────────────────────────────────────
+6. CONTACT SHARING LOGIC
+────────────────────────────────────────────────────────────────────────────────
+
+6.1  When is contact shared?
+------------------------------
+  Contact details (finder's full name, email, phone) are shared with the
+  claimant ONLY when a claim is approved. This happens via:
+    A) approveAndShare() — called on AUTO approval or manual approval.
+    B) getMyClaimForItem() — when a claimant revisits the claim page after
+       approval, contact is re-fetched and re-displayed.
+
+  The contact data is NOT stored on the Claim document — it is always fetched
+  live from the finder's User document (postedBy on the Item).
+
+6.2  Channels contact is shared through
+-----------------------------------------
+  1. In-app (SubmitClaim page): finderContact object returned in API response,
+     shown as a styled contact card with name, email, phone.
+  2. In-app (ItemDetail page): claimant visiting a 'claimed' item sees the
+     same contact card fetched via getMyClaimForItem.
+  3. Email to claimant: HTML email with finder's name, email, phone, safety tip.
+
+6.3  "I Found This Item" (for lost items)
+------------------------------------------
+  Different from claiming. If someone physically has a found item and sees
+  the lost report on CIRS, they press "I Found This Item" on the item detail page.
+
+  POST /api/items/:id/contact (protected)
+
+  Logic:
+    - Item must be status 'lost'.
+    - Requester must not be the item's poster.
+    - Fetches finder info (the person pressing the button) from req.user.
+    - Creates an in-app notification for the LOST item's poster:
+        "Someone found your item! [Finder name] says they found [item title]."
+    - Returns the lost item poster's contact info (name, email, phone) to the
+      person who pressed the button.
+    - No email is sent from this route — the finder can use the revealed
+      email address to initiate contact directly via their own email client
+      (a mailto: link is provided with a pre-filled subject and body).
+
+
+────────────────────────────────────────────────────────────────────────────────
+7. NOTIFICATION SYSTEM
+────────────────────────────────────────────────────────────────────────────────
+
+7.1  Notification Types and When They Are Sent
+------------------------------------------------
+
+  claim_submitted
+    → To finder: when someone submits a claim on their found item
+                 (FINDER_REVIEW or ADMIN_REVIEW route).
+    → To claimant: when their claim is placed under review (both routes).
+    → To all admins: when a HIGH-risk or fraud-flagged claim is created.
+    → To all admins: when a finder escalates a claim.
+    → To claimant: when finder escalates their claim to admin.
+
+  claim_approved
+    → To finder: when their item's claim is approved (any route).
+    → To claimant: when their claim is approved (any route).
+
+  claim_rejected
+    → To claimant: when their claim is rejected by finder or admin.
+
+  match_found
+    → To the poster of an existing item: when a new opposite-status item
+      is posted that scores ≥ 4 against their item.
+    → To the poster of the new item: if matches were found.
+    Both parties receive in-app AND email notifications.
+
+  finder_contact
+    → To the lost item's poster: when a logged-in user presses
+      "I Found This Item" on their lost item report.
+
+  system
+    → Reserved for general system messages (not currently used in active flows).
+
+7.2  Notification Structure (MongoDB)
+---------------------------------------
+  {
+    user    : ObjectId (recipient)
+    type    : enum (see above)
+    title   : string
+    message : string
+    link    : string (relative URL, e.g. /item/:id)
+    read    : boolean (default false)
+    createdAt / updatedAt
+  }
+
+7.3  Email Notifications
+-------------------------
+  Sent via Nodemailer (SMTP). The sendEmail utility accepts:
+    email   : recipient address
+    subject : email subject line
+    message : plain text fallback
+    html    : styled HTML body (used for match_found and claim emails)
+
+  HTML emails include:
+    - Branded header (CIRS logo area, colored by notification type)
+    - Two-column item comparison card (for match_found emails)
+    - Call-to-action button linking to the relevant item page
+    - Footer with a disclaimer
+
+7.4  Frontend Notification Bell
+---------------------------------
+  The notification bell in the navbar shows an unread count badge.
+  Clicking navigates to /notifications (the Alerts page).
+
+  Icon mapping by type:
+    claim_submitted → gold AlertCircle
+    claim_approved  → green CheckCircle
+    claim_rejected  → red AlertCircle
+    match_found     → blue Search icon
+    finder_contact  → green HandHeart icon
+    default         → grey MessageSquare
+
+
+────────────────────────────────────────────────────────────────────────────────
+8. IMAGE UPLOAD
+────────────────────────────────────────────────────────────────────────────────
+
+  All item images are uploaded to Cloudinary before the item is saved.
+
+  Flow:
+    1. User selects a file in the report form.
+    2. Frontend calls uploadApi.uploadImage(file) → POST /api/upload.
+    3. Server receives the file via multer (memory storage).
+    4. File is streamed to Cloudinary using upload_stream.
+    5. Cloudinary returns a secure_url.
+    6. URL is returned to the frontend and stored in the item's image field.
+
+  Constraints:
+    - Max file size: 5 MB (enforced on frontend before upload attempt).
+    - Accepted formats: image/* (JPEG, PNG, WebP, etc.).
+    - If no image is uploaded, a default Unsplash placeholder URL is used.
+
+  Edit image flow:
+    - In both MyReports and ItemDetail edit forms, the current image is shown.
+    - Clicking the image zone opens a file picker.
+    - A new file is uploaded to Cloudinary only when Save is pressed.
+    - Placeholder detection (placehold.co, the default Unsplash URL) shows
+      "Add Photo" instead of "Change" when no real image has been uploaded yet.
+
+
+────────────────────────────────────────────────────────────────────────────────
+9. BROWSE & SEARCH
+────────────────────────────────────────────────────────────────────────────────
+
+  The Browse page shows only ACTIVE items (status: lost or found).
+  Claimed and resolved items are hidden.
+
+  Filters available:
+    - Status    : 'lost' or 'found' (selecting none defaults to 'active' = both)
+    - Category  : any of the 8 item categories
+    - Date range: dateFrom and dateTo filter by item.date
+    - Free text : searches title, description, and location via regex
+
+  Sort options:
+    - Newest first (default)
+    - Oldest first
+    - Event date newest / oldest
+    - Category A–Z
+    - Title A–Z
+
+  Pagination:
+    - Default 12 items per page, max 50.
+    - Total count and total pages returned for UI pagination controls.
+
+  URL state:
+    All filters, sort, and page are synced to URL query params so the
+    page can be bookmarked and shared.
+
+
+────────────────────────────────────────────────────────────────────────────────
+10. MY REPORTS (poster's dashboard view)
+────────────────────────────────────────────────────────────────────────────────
+
+  Shows all items posted by the logged-in user.
+  Items are fetched on mount and grouped visually by status.
+
+  Edit post:
+    - Inline edit form (title, description, category, location, date, image).
+    - Image can be added or changed even if no image was originally uploaded.
+    - On save, image is uploaded to Cloudinary first if a new file was selected.
+    - Category change automatically re-assigns riskLevel server-side.
+
+  Delete post:
+    - Confirmation required before deletion.
+
+  Status badges:
+    - lost → red
+    - found → green
+    - claimed → amber
+    - resolved → purple
+
+
+────────────────────────────────────────────────────────────────────────────────
+11. ITEM DETAIL PAGE (single item view)
+────────────────────────────────────────────────────────────────────────────────
+
+  Visible to everyone. Shows full item details.
+
+  For the POSTER (finder of a found item):
+    - Edit / Delete buttons.
+    - If status = 'claimed': "Confirm Handover — Mark as Resolved" button.
+    - Claims panel (only for found/claimed/resolved items):
+        Lists all submitted claims with claimant info, score, graded answers.
+        Finder can approve, reject, or escalate each claim.
+        Risk routing badge shown per claim.
+
+  For a NON-POSTER on a FOUND item:
+    - "This is mine — Claim It" button (links to SubmitClaim page).
+    - If already claimed (not by them): "Claim Verified" info box.
+    - If resolved: "Item Resolved" info box.
+
+  For a NON-POSTER on a LOST item:
+    - "I Found This Item — Contact Reporter" button.
+    - On click: calls POST /api/items/:id/contact, reveals reporter's contact
+      (name, email with mailto link + copy button, phone with call link + copy button).
+    - Reporter is notified in-app.
+    - If not logged in: "Log in to contact reporter" button instead.
+
+  For the APPROVED CLAIMANT on a CLAIMED item:
+    - Instead of plain "Claim Verified" box, a green contact card appears
+      showing the finder's name, email, and phone (fetched via getMyClaimForItem).
+
+  Reviews:
+    - After an item is resolved, the finder/poster can leave a review.
+    - The claimant can leave a review once their claim is approved (claimed or resolved).
+    - One review per user per session (reviewApi.getMyReview checks existing).
+
+
+────────────────────────────────────────────────────────────────────────────────
+12. REPORT FOUND ITEM (verification question setup)
+────────────────────────────────────────────────────────────────────────────────
+
+  When posting a found item, the finder sets verification questions.
+  These are the questions the true owner must answer to claim the item.
+
+  Suggested questions are auto-generated per category:
+    Electronics    → colour, brand/model, unique features (scratches, stickers)
+    Documents      → document type, name on document, issuing authority
+    Keys           → number of keys, key ring/fob description, unique markings
+    Bags           → bag type, colour, brand, contents description
+    Money          → approximate amount, denomination, currency
+    Cards          → card type (debit/credit/ID), bank/issuer, name on card
+    Personal Effects → colour, brand/type, unique markings or engravings
+    Other          → item colour, approximate size, any unique identifiers
+
+  Finders can add/remove/edit questions and provide the correct answers.
+  Correct answers are stored on the Item document server-side only — they are
+  never included in GET /api/items responses sent to the browser.
+
+  Answer inputs use type="text" autoComplete="off" to prevent browsers from
+  autofilling or treating them as password fields.
+
+
+────────────────────────────────────────────────────────────────────────────────
+13. SUBMIT CLAIM PAGE
+────────────────────────────────────────────────────────────────────────────────
+
+  Route: /submit-claim/:itemId
+
+  On load:
+    - Checks if the user already has a claim for this item (getMyClaimForItem).
+    - If already approved → shows contact card immediately (no re-submission).
+    - If under_review     → shows "Claim Under Review" panel.
+    - If rejected         → shows "Verification Failed" panel.
+
+  Form:
+    - One text field per verification question.
+    - Optional: "Where did you lose it?" (location hint).
+    - Optional: "Approximate time you lost it" (datetime-local input).
+    - Submit button disabled until all questions are answered.
+
+  On submit:
+    - Answers graded, composite score calculated, fraud checked, claim routed.
+    - If AUTO approved → contact card shown immediately.
+    - If under_review  → waiting panel shown.
+    - If rejected      → failure panel with score shown.
+
+  Score display:
+    - Progress bar showing correct answers out of total.
+    - Composite score bar for under_review results.
+    - Pass threshold shown (e.g. "2/3 needed").
+
+  Sidebar:
+    - "How It Works" step-by-step guide.
+    - Score weights breakdown (60/15/10/15).
+    - Legal notice about false claims.
+
+
+────────────────────────────────────────────────────────────────────────────────
+14. SECURITY CONSIDERATIONS
+────────────────────────────────────────────────────────────────────────────────
+
+  - Correct answers to verification questions are NEVER sent to the frontend.
+    Only the questions are exposed on item GET requests.
+
+  - Contact details (email, phone) are gated behind claim approval.
+    They are not included in standard item GET responses.
+
+  - All protected routes require a valid Firebase ID token.
+    Expired or tampered tokens return 401.
+
+  - Only the item poster or an admin can edit or delete an item.
+
+  - Only the item poster or an admin can view the list of claims for an item.
+
+  - Input filtering: only 'status' and 'category' query params reach the
+    database query in GET /api/items. All other params are stripped to prevent
+    NoSQL injection via URL manipulation.
+
+  - Claim deduplication: MongoDB unique index on (item, claimant) prevents
+    a user from submitting multiple claims for the same item even with
+    parallel requests.
+
+  - Fraud detection runs silently — errors in fraud detection never crash the
+    main claim submission. If fraud detection itself fails, it returns empty
+    flags and the claim proceeds normally (fail-open by design).
+
+  - Firebase private key (service account JSON) is in .gitignore and must
+    never be committed to version control.
+
+  - All secrets (MongoDB URI, JWT seed, Cloudinary keys, SMTP credentials,
+    Firebase config) are stored in server/.env and never hard-coded.
+
+
+────────────────────────────────────────────────────────────────────────────────
+15. DATA MODELS SUMMARY
+────────────────────────────────────────────────────────────────────────────────
+
+  User
+    firebaseUid, fullName, username, email, profileImage, phone, faculty,
+    role ('user'|'admin'), isSuperAdmin (bool), isVerified (bool), timestamps
+
+  Item
+    title, description, category, location, date, status, image, postedBy (ref User),
+    riskLevel (auto), verificationQuestions [{question, answer}],
+    contactInfo {phone, email}, createdAt
+    Indexes: text index on title+description
+
+  Claim
+    item (ref Item), claimant (ref User),
+    answers [{question, providedAnswer, isCorrect}],
+    score, totalQuestions, compositeScore, passed,
+    locationHint, reportedTime,
+    status, riskRoute, routeReason,
+    fraudFlags [], isFlagged,
+    reviewNote,
+    auditLog [{action, actor, actorRole, note, timestamp}],
+    createdAt
+    Indexes: unique on (item, claimant)
+
+  Notification
+    user (ref User), type, title, message, link, read (bool), timestamps
+
+================================================================================
+  END OF LOGIC REFERENCE
+================================================================================

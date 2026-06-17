@@ -4,7 +4,8 @@ const {
   getItem,
   createItem,
   updateItem,
-  deleteItem
+  deleteItem,
+  contactItem,
 } = require('../controllers/itemController');
 
 const router = express.Router();
@@ -21,5 +22,7 @@ router
   .get(getItem)
   .put(protect, updateItem)
   .delete(protect, deleteItem);
+
+router.post('/:id/contact', protect, contactItem);
 
 module.exports = router;

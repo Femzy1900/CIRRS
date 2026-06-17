@@ -120,4 +120,76 @@ function isPassing(score, total, category) {
   return score >= threshold;
 }
 
-module.exports = { answersMatch, gradeAnswers, isPassing };
+// ─────────────────────────────────────────────────────────────────────────────
+// Composite Score Engine
+// Weights: answer accuracy 60% | location match 15% | time proximity 10% | detail quality 15%
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Compute word-overlap similarity between two location strings (0–100).
+ */
+function locationSimilarity(hint, itemLocation) {
+  if (!hint || !itemLocation) return 50; // neutral when no hint given
+  const norm = str => str.toLowerCase().replace(/[^\w\s]/g, ' ').trim();
+  const hintWords = new Set(norm(hint).split(/\s+/).filter(w => w.length > 2));
+  const locWords  = new Set(norm(itemLocation).split(/\s+/).filter(w => w.length > 2));
+  if (hintWords.size === 0 || locWords.size === 0) return 50;
+  let overlap = 0;
+  for (const w of hintWords) { if (locWords.has(w)) overlap++; }
+  return Math.round((overlap / Math.max(hintWords.size, locWords.size)) * 100);
+}
+
+/**
+ * Score based on how close the claimant's reported time is to the item date (0–100).
+ */
+function timeProximityScore(reportedTime, itemDate) {
+  if (!reportedTime || !itemDate) return 50; // neutral when not provided
+  const diffHours = Math.abs(new Date(reportedTime) - new Date(itemDate)) / (1000 * 60 * 60);
+  if (diffHours <= 24)  return 100;
+  if (diffHours <= 72)  return 75;
+  if (diffHours <= 168) return 45; // within 1 week
+  if (diffHours <= 720) return 20; // within 30 days
+  return 5;
+}
+
+/**
+ * Score based on average length/detail of provided answers (0–100).
+ */
+function detailQualityScore(gradedAnswers) {
+  if (!gradedAnswers || gradedAnswers.length === 0) return 0;
+  const avgLen = gradedAnswers.reduce((s, a) => s + (a.providedAnswer?.trim().length || 0), 0) / gradedAnswers.length;
+  if (avgLen >= 25) return 100;
+  if (avgLen >= 12) return 75;
+  if (avgLen >= 6)  return 45;
+  if (avgLen >= 2)  return 20;
+  return 5;
+}
+
+/**
+ * Calculate a weighted composite score (0–100) for a claim.
+ *
+ * @param {Object} gradeResult  - { score, totalQuestions, gradedAnswers }
+ * @param {Object} item         - Mongoose Item doc (needs .location, .date)
+ * @param {string} locationHint - Optional hint from claimant
+ * @param {Date}   reportedTime - Optional time from claimant
+ * @returns {number} 0–100
+ */
+function calculateCompositeScore(gradeResult, item, locationHint, reportedTime) {
+  const { score, totalQuestions, gradedAnswers } = gradeResult;
+
+  const answerScore  = totalQuestions > 0 ? (score / totalQuestions) * 100 : 0;
+  const locScore     = locationSimilarity(locationHint, item.location);
+  const timeScore    = timeProximityScore(reportedTime, item.date);
+  const detailScore  = detailQualityScore(gradedAnswers);
+
+  const composite = Math.round(
+    answerScore * 0.60 +
+    locScore    * 0.15 +
+    timeScore   * 0.10 +
+    detailScore * 0.15
+  );
+
+  return Math.min(100, Math.max(0, composite));
+}
+
+module.exports = { answersMatch, gradeAnswers, isPassing, calculateCompositeScore };

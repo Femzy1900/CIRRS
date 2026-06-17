@@ -9,7 +9,7 @@ import {
 } from 'lucide-react';
 
 const CATEGORIES = ['Electronics', 'Documents', 'Personal Effects', 'Keys', 'Bags', 'Money', 'Cards', 'Other'];
-const STATUSES = ['lost', 'found', 'claimed', 'resolved'];
+const STATUSES = ['lost', 'found'];
 const SORT_OPTIONS = [
   { value: '-createdAt', label: 'Newest First' },
   { value: 'createdAt', label: 'Oldest First' },
@@ -60,7 +60,8 @@ export default function Browse() {
     try {
       const res = await itemApi.getItems({
         search: params.search,
-        status: params.status,
+        // if no status filter chosen, exclude resolved items
+        status: params.status || 'active',
         category: params.category,
         dateFrom: params.dateFrom,
         dateTo: params.dateTo,
@@ -120,7 +121,7 @@ export default function Browse() {
       {/* ── Header ── */}
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
         <div className="space-y-3">
-          <h1 className="text-4xl lg:text-5xl font-black text-white tracking-tighter leading-tight">
+          <h1 className="text-3xl sm:text-4xl lg:text-5xl font-black text-white tracking-tighter leading-tight">
             Browse <span className="text-brand-gold">All Reports</span>
           </h1>
           <p className="text-slate-400 font-medium">
@@ -186,7 +187,7 @@ export default function Browse() {
 
       {/* ── Filter Panel ── */}
       {filtersOpen && (
-        <div className="glass-card p-8 rounded-[2.5rem] border-white/5 animate-fade-in">
+        <div className="glass-card p-5 sm:p-8 rounded-[1.5rem] sm:rounded-[2.5rem] border-white/5 animate-fade-in">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6 gap-6">
 
             {/* Status */}

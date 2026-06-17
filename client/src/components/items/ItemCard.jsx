@@ -57,7 +57,7 @@ export default function ItemCard({ item }) {
             <div className="p-1.5 bg-white/5 rounded-lg border border-white/5 group-hover:border-brand-gold/20 transition-colors shrink-0">
               <User size={13} className="text-brand-gold/70 group-hover:text-brand-gold" />
             </div>
-            <span className="text-xs font-semibold truncate">{item.postedBy?.fullName || item.postedBy}</span>
+            <span className="text-xs font-semibold truncate">{item.postedBy?.fullName || item.postedBy?.username || 'Unknown'}</span>
           </div>
         </div>
 

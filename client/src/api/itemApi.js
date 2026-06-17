@@ -28,7 +28,12 @@ const itemApi = {
   deleteItem: async (id) => {
     const response = await axiosInstance.delete(`/items/${id}`);
     return response.data;
-  }
+  },
+
+  contactItem: async (id) => {
+    const response = await axiosInstance.post(`/items/${id}/contact`);
+    return response.data;
+  },
 };
 
 export default itemApi;

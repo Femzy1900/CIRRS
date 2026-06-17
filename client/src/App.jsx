@@ -27,12 +27,14 @@ import AdminRoute from './routes/AdminRoute';
 import AdminDashboard from './pages/admin/AdminDashboard';
 
 function App() {
-  const { checkAuth, isAuthenticated } = useAuthStore();
+  const { checkAuth, handleGoogleRedirect, isAuthenticated } = useAuthStore();
   const { startPolling, stopPolling } = useNotificationStore();
 
   useEffect(() => {
+    // Handle Google redirect result first (if user was redirected back from Google)
+    handleGoogleRedirect().catch(() => {});
     checkAuth();
-  }, [checkAuth]);
+  }, [checkAuth, handleGoogleRedirect]);
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -55,13 +57,15 @@ function App() {
             <Route path="/about" element={<About />} />
             <Route path="/item/:id" element={<ItemDetail />} />
             
+            {/* Email verification — outside PublicRoute so the Firebase link always works */}
+            <Route path="/verify-email" element={<VerifyEmail />} />
+
             {/* Public Auth Routes */}
             <Route element={<PublicRoute />}>
               <Route path="/login" element={<Login />} />
               <Route path="/register" element={<Register />} />
               <Route path="/forgot-password" element={<ForgotPassword />} />
               <Route path="/reset-password/:token" element={<ResetPassword />} />
-              <Route path="/verify-email/:token" element={<VerifyEmail />} />
             </Route>
 
             {/* Protected Routes */}

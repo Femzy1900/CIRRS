@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import useItemStore from '../store/useItemStore';
 import useAuthStore from '../store/useAuthStore';
 import {
@@ -14,12 +14,16 @@ import {
   Package,
   MapPin,
   Calendar,
-  Tag
+  Tag,
+  Upload,
+  ImageIcon,
+  Loader
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import Badge from '../components/ui/Badge';
 import Button from '../components/ui/Button';
 import { toast } from 'sonner';
+import uploadApi from '../api/uploadApi';
 
 export default function MyReports() {
   const { items, fetchItems, updateItem, deleteItem } = useItemStore();
@@ -28,6 +32,10 @@ export default function MyReports() {
   const [editingItem, setEditingItem] = useState(null);
   const [editForm, setEditForm] = useState({});
   const [saving, setSaving] = useState(false);
+  const [imagePreview, setImagePreview] = useState(null);
+  const [imageFile, setImageFile] = useState(null);
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const imageInputRef = useRef(null);
 
   useEffect(() => {
     fetchItems();
@@ -49,24 +57,57 @@ export default function MyReports() {
       location: item.location,
       category: item.category,
       date: item.date ? new Date(item.date).toISOString().split('T')[0] : '',
+      image: item.image || '',
     });
+    setImagePreview(item.image || null);
+    setImageFile(null);
   };
 
   const closeEdit = () => {
     setEditingItem(null);
     setEditForm({});
+    setImagePreview(null);
+    setImageFile(null);
+  };
+
+  const handleImageChange = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('Image must be under 5MB.');
+      return;
+    }
+    setImageFile(file);
+    const reader = new FileReader();
+    reader.onloadend = () => setImagePreview(reader.result);
+    reader.readAsDataURL(file);
   };
 
   const handleSave = async (id) => {
     setSaving(true);
     try {
-      await updateItem(id, editForm);
+      let finalForm = { ...editForm };
+
+      // Upload new image to Cloudinary if one was selected
+      if (imageFile) {
+        setUploadingImage(true);
+        const uploadRes = await uploadApi.uploadImage(imageFile);
+        setUploadingImage(false);
+        if (uploadRes.success) {
+          finalForm.image = uploadRes.url;
+        } else {
+          toast.error('Image upload failed. Other changes will still be saved.');
+        }
+      }
+
+      await updateItem(id, finalForm);
       toast.success('Report updated successfully.');
       closeEdit();
     } catch (err) {
       toast.error(err.message || 'Failed to update report.');
     } finally {
       setSaving(false);
+      setUploadingImage(false);
     }
   };
 
@@ -89,7 +130,12 @@ export default function MyReports() {
     });
   };
 
-  const categories = ['Electronics', 'Documents', 'Personal Effects', 'Keys', 'Bags', 'Other'];
+  const categories = ['Electronics', 'Documents', 'Personal Effects', 'Keys', 'Bags', 'Money', 'Cards', 'Other'];
+
+  // Treat null, empty, or known placeholder URLs as "no real image"
+  const PLACEHOLDER_PATTERNS = ['placehold.co', 'placeholder', 'unsplash.com/photo-1586769852'];
+  const isPlaceholder = (url) =>
+    !url || PLACEHOLDER_PATTERNS.some(p => url.includes(p));
 
   return (
     <div className="max-w-6xl mx-auto space-y-12 animate-fade-in pb-20 pt-8">
@@ -100,7 +146,7 @@ export default function MyReports() {
             <ArrowLeft size={14} className="group-hover:-translate-x-1 transition-transform" />
             Back to Dashboard
           </Link>
-          <h1 className="text-4xl lg:text-5xl font-black text-white tracking-tighter leading-tight">
+          <h1 className="text-3xl sm:text-4xl lg:text-5xl font-black text-white tracking-tighter leading-tight">
             My <span className="text-brand-gold">Reports</span>
           </h1>
           <p className="text-slate-400 font-medium max-w-xl">
@@ -108,12 +154,12 @@ export default function MyReports() {
           </p>
         </div>
 
-        <div className="flex items-center gap-2 p-1.5 bg-white/5 backdrop-blur-md rounded-2xl border border-white/10">
+        <div className="flex items-center gap-1 sm:gap-2 p-1.5 bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 overflow-x-auto scrollbar-none">
           {['all', 'lost', 'found', 'resolved'].map((type) => (
             <button
               key={type}
               onClick={() => setFilter(type)}
-              className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
+              className={`px-3 sm:px-6 py-2 sm:py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
                 filter === type
                   ? 'bg-brand-gold text-brand-blue-dark shadow-lg scale-105'
                   : 'text-slate-500 hover:text-white'
@@ -132,7 +178,7 @@ export default function MyReports() {
             const id = item._id || item.id;
             const isEditing = editingItem === id;
             return (
-              <div key={id} className="group glass-card p-6 rounded-[2.5rem] border-white/5 hover:border-brand-gold/30 transition-all relative overflow-hidden">
+              <div key={id} className="group glass-card p-4 sm:p-6 rounded-[2rem] sm:rounded-[2.5rem] border-white/5 hover:border-brand-gold/30 transition-all relative overflow-hidden">
                 <div className="absolute top-0 right-0 w-32 h-32 bg-brand-gold/5 rounded-full blur-3xl -mr-16 -mt-16 opacity-0 group-hover:opacity-100 transition-opacity"></div>
 
                 {isEditing ? (
@@ -208,17 +254,82 @@ export default function MyReports() {
                           onChange={e => setEditForm(f => ({ ...f, description: e.target.value }))}
                         />
                       </div>
+
+                      {/* ── Image Upload ── */}
+                      <div className="md:col-span-2 space-y-2">
+                        <label className="text-[10px] font-black uppercase tracking-widest text-brand-gold flex items-center gap-2">
+                          <ImageIcon size={12} />
+                          Item Photo
+                        </label>
+                        <div className="flex items-start gap-4">
+                          {/* Preview / click-to-upload zone */}
+                          <button
+                            type="button"
+                            onClick={() => imageInputRef.current?.click()}
+                            className="relative w-28 h-28 rounded-2xl overflow-hidden border-2 border-dashed border-white/10 hover:border-brand-gold/50 shrink-0 bg-white/5 group/img transition-all"
+                          >
+                            {isPlaceholder(imagePreview) ? (
+                              /* No real image yet */
+                              <div className="w-full h-full flex flex-col items-center justify-center gap-1 text-slate-600 group-hover/img:text-brand-gold transition-colors">
+                                <Upload size={22} />
+                                <span className="text-[9px] font-black uppercase tracking-widest">Add Photo</span>
+                              </div>
+                            ) : (
+                              /* Has image — show it with hover overlay */
+                              <>
+                                <img src={imagePreview} alt="Preview" className="w-full h-full object-cover" />
+                                <div className="absolute inset-0 bg-black/50 opacity-0 group-hover/img:opacity-100 transition-opacity flex flex-col items-center justify-center gap-1 text-white">
+                                  <Upload size={18} />
+                                  <span className="text-[9px] font-black uppercase tracking-widest">Change</span>
+                                </div>
+                              </>
+                            )}
+                          </button>
+
+                          {/* Info + file name */}
+                          <div className="flex-1 space-y-2 pt-1">
+                            {imageFile ? (
+                              <p className="text-[11px] text-emerald-400 font-bold truncate flex items-center gap-1.5">
+                                ✓ {imageFile.name}
+                              </p>
+                            ) : isPlaceholder(imagePreview) ? (
+                              <p className="text-[11px] text-amber-400/80 font-bold">No photo uploaded yet</p>
+                            ) : (
+                              <p className="text-[11px] text-slate-400 font-bold">Current photo</p>
+                            )}
+                            <p className="text-[10px] text-slate-600 leading-relaxed">
+                              Click the box to {isPlaceholder(imagePreview) ? 'add' : 'change'} the photo.<br />
+                              JPG or PNG, max 5 MB.
+                            </p>
+                            <input
+                              ref={imageInputRef}
+                              type="file"
+                              accept="image/*"
+                              className="hidden"
+                              onChange={handleImageChange}
+                            />
+                          </div>
+                        </div>
+                      </div>
                     </div>
 
                     <div className="flex gap-3 pt-2">
-                      <Button variant="accent" size="sm" icon={Save} loading={saving} onClick={() => handleSave(id)}>Save Changes</Button>
+                      <Button
+                        variant="accent"
+                        size="sm"
+                        icon={uploadingImage ? Loader : Save}
+                        loading={saving}
+                        onClick={() => handleSave(id)}
+                      >
+                        {uploadingImage ? 'Uploading Photo…' : 'Save Changes'}
+                      </Button>
                       <Button variant="ghost" size="sm" onClick={closeEdit}>Cancel</Button>
                     </div>
                   </div>
                 ) : (
                   /* ── Normal row ── */
                   <div className="flex flex-col md:flex-row items-center gap-8 relative z-10">
-                    <div className="w-full md:w-48 h-48 rounded-[2rem] overflow-hidden shrink-0 border border-white/10 shadow-2xl">
+                    <div className="w-full md:w-36 lg:w-48 h-36 lg:h-48 rounded-[1.5rem] lg:rounded-[2rem] overflow-hidden shrink-0 border border-white/10 shadow-2xl">
                       <img src={item.image} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-1000" alt={item.title} />
                     </div>
 
@@ -232,7 +343,7 @@ export default function MyReports() {
                       </div>
 
                       <div>
-                        <h3 className="text-3xl font-black text-white tracking-tighter group-hover:text-brand-gold transition-colors">{item.title}</h3>
+                        <h3 className="text-xl sm:text-3xl font-black text-white tracking-tighter group-hover:text-brand-gold transition-colors">{item.title}</h3>
                         <p className="text-sm text-slate-400 font-medium mt-2 max-w-2xl">{item.description}</p>
                       </div>
 

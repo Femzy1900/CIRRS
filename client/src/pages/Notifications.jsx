@@ -1,13 +1,15 @@
 import React, { useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { 
-  Bell, 
-  CheckCircle, 
-  AlertCircle, 
-  MessageSquare, 
+import {
+  Bell,
+  CheckCircle,
+  AlertCircle,
+  MessageSquare,
   ArrowLeft,
   Trash2,
-  Clock
+  Clock,
+  Search,
+  HandHeart
 } from 'lucide-react';
 import Button from '../components/ui/Button';
 import Badge from '../components/ui/Badge';
@@ -21,16 +23,19 @@ export default function Notifications() {
   }, [fetchNotifications]);
 
   const getIconAndBg = (type) => {
-    switch(type) {
+    switch (type) {
       case 'claim_submitted':
         return { icon: <AlertCircle className="text-brand-gold" size={24} />, bg: 'bg-brand-gold/10' };
       case 'claim_approved':
-      case 'match_found':
         return { icon: <CheckCircle className="text-emerald-400" size={24} />, bg: 'bg-emerald-400/10' };
       case 'claim_rejected':
         return { icon: <AlertCircle className="text-rose-400" size={24} />, bg: 'bg-rose-400/10' };
+      case 'match_found':
+        return { icon: <Search className="text-sky-400" size={24} />, bg: 'bg-sky-400/10' };
+      case 'finder_contact':
+        return { icon: <HandHeart className="text-emerald-400" size={24} />, bg: 'bg-emerald-400/10' };
       default:
-        return { icon: <MessageSquare className="text-sky-400" size={24} />, bg: 'bg-sky-400/10' };
+        return { icon: <MessageSquare className="text-slate-400" size={24} />, bg: 'bg-slate-400/10' };
     }
   };
 
@@ -43,7 +48,7 @@ export default function Notifications() {
             <ArrowLeft size={14} className="group-hover:-translate-x-1 transition-transform" />
             Back to Dashboard
           </Link>
-          <h1 className="text-4xl lg:text-5xl font-black text-white tracking-tighter leading-tight">
+          <h1 className="text-3xl sm:text-4xl lg:text-5xl font-black text-white tracking-tighter leading-tight">
             Activity <span className="text-brand-gold">Alerts</span>
           </h1>
           <p className="text-slate-400 font-medium max-w-xl">
@@ -63,14 +68,14 @@ export default function Notifications() {
             return (
               <div 
                 key={notif._id} 
-                className={`group glass-card p-8 rounded-[2.5rem] border-white/5 transition-all hover:border-brand-gold/30 relative overflow-hidden ${!notif.read ? 'bg-white/[0.03]' : 'opacity-60'}`}
+                className={`group glass-card p-5 sm:p-8 rounded-[1.5rem] sm:rounded-[2.5rem] border-white/5 transition-all hover:border-brand-gold/30 relative overflow-hidden ${!notif.read ? 'bg-white/[0.03]' : 'opacity-60'}`}
               >
                 {!notif.read && (
                   <div className="absolute top-0 left-0 w-1 h-full bg-brand-gold shadow-[0_0_15px_#FFD700]"></div>
                 )}
                 
-                <div className="flex flex-col sm:flex-row items-start gap-8 relative z-10">
-                  <div className={`w-16 h-16 ${bg} rounded-2xl flex items-center justify-center shrink-0 border border-white/5 shadow-2xl`}>
+                <div className="flex flex-col sm:flex-row items-start gap-4 sm:gap-8 relative z-10">
+                  <div className={`w-12 h-12 sm:w-16 sm:h-16 ${bg} rounded-2xl flex items-center justify-center shrink-0 border border-white/5 shadow-2xl`}>
                     {icon}
                   </div>
                   

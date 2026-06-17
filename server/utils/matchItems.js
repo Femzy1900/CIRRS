@@ -123,13 +123,14 @@ function buildEmailHtml({ recipientName, yourItem, matchedItem, matchedItemStatu
 async function runMatchingForItem(newItem, clientUrl = 'http://localhost:5173') {
   try {
     const oppositeStatus = newItem.status === 'lost' ? 'found' : 'lost';
+    const newItemPosterId = newItem.postedBy._id || newItem.postedBy;
 
     // Fetch candidates: same category, opposite status, not same poster
     const candidates = await Item.find({
       status: oppositeStatus,
       category: newItem.category,
       _id: { $ne: newItem._id },
-      postedBy: { $ne: newItem.postedBy._id || newItem.postedBy },
+      postedBy: { $ne: newItemPosterId },
     }).populate('postedBy', 'email fullName _id');
 
     // Score every candidate
@@ -140,100 +141,101 @@ async function runMatchingForItem(newItem, clientUrl = 'http://localhost:5173') 
       .slice(0, 3); // top 3 only
 
     for (const { item: matchedItem } of scored) {
-      const poster = matchedItem.postedBy;
-      if (!poster?._id || !poster?.email) continue;
+      const matchedPoster = matchedItem.postedBy;
+      if (!matchedPoster?._id || !matchedPoster?.email) continue;
 
-      const matchUrl = `${clientUrl}/item/${matchedItem._id}`;
-
-      // ── Dedup: skip if already notified about this exact pair ──
-      const alreadyNotified = await Notification.findOne({
-        user: poster._id,
+      // ── 1. Notify the MATCHED item's poster ──────────────────────────────────
+      // Dedup: check if they were already told about this specific new item
+      const alreadyNotifiedMatched = await Notification.findOne({
+        user: matchedPoster._id,
         type: 'match_found',
-        link: `/item/${matchedItem._id}`,
+        link: `/item/${newItem._id}`,   // link to the new item (what they'll click to)
       });
-      if (alreadyNotified) continue;
 
-      let title, message;
-      if (newItem.status === 'found') {
-        // We found something → notify the person who lost a similar item
-        title = '🔍 Possible Match: Someone Found Something Like Yours!';
-        message = `A recently found "${newItem.title}" (${newItem.location}) may match your lost "${matchedItem.title}". Check it out and submit a claim if it's yours!`;
-      } else {
-        // Someone reported lost → notify the person who found something similar
-        title = '🔍 Someone May Be Looking For What You Found!';
-        message = `Someone just reported losing a "${newItem.title}" near ${newItem.location}, which may match the "${matchedItem.title}" you found. Review the report.`;
+      if (!alreadyNotifiedMatched) {
+        let title, message;
+        if (newItem.status === 'found') {
+          // new item is found → matched item is lost → notify the loser
+          title = '🔍 Possible Match: Someone Found Something Like Yours!';
+          message = `A recently found "${newItem.title}" (${newItem.location}) may match your lost "${matchedItem.title}". Check it out and submit a claim if it's yours!`;
+        } else {
+          // new item is lost → matched item is found → notify the finder
+          title = '🔍 Someone May Be Looking For What You Found!';
+          message = `Someone just reported losing a "${newItem.title}" near ${newItem.location}, which may match the "${matchedItem.title}" you found. Review the report.`;
+        }
+
+        await Notification.create({
+          user: matchedPoster._id,
+          type: 'match_found',
+          title,
+          message,
+          link: `/item/${newItem._id}`,
+        });
+
+        await sendEmail({
+          email: matchedPoster.email,
+          subject: title,
+          message,
+          html: buildEmailHtml({
+            recipientName: matchedPoster.fullName,
+            yourItem: matchedItem,
+            matchedItem: newItem,
+            matchedItemStatus: newItem.status,
+            matchUrl: `${clientUrl}/item/${newItem._id}`,
+          }),
+        }).catch(err => console.error('[MatchEngine] Email to matched poster failed:', err.message));
       }
 
-      // In-app notification
-      await Notification.create({
-        user: poster._id,
+      // ── 2. Notify the NEW item's poster — one notification per match ─────────
+      // This ensures the loser sees EVERY matching found item, not just the best one
+      const alreadyNotifiedNew = await Notification.findOne({
+        user: newItemPosterId,
         type: 'match_found',
-        title,
-        message,
-        link: `/item/${newItem._id}`,
+        link: `/item/${matchedItem._id}`,   // link to each matched item
       });
 
-      // Email notification
-      const emailHtml = buildEmailHtml({
-        recipientName: poster.fullName,
-        yourItem: matchedItem,
-        matchedItem: newItem,
-        matchedItemStatus: newItem.status,
-        matchUrl: `${clientUrl}/item/${newItem._id}`,
-      });
+      if (!alreadyNotifiedNew && newItem.postedBy?.email) {
+        const notifyTitle = newItem.status === 'lost'
+          ? '✅ Potential match found for your lost item!'
+          : '👤 Someone may be looking for the item you found';
 
-      await sendEmail({
-        email: poster.email,
-        subject: title,
-        message,
-        html: emailHtml,
-      }).catch(err => console.error('[MatchEngine] Email failed:', err));
-    }
+        const notifyMsg = newItem.status === 'lost'
+          ? `The "${matchedItem.title}" found at ${matchedItem.location} may be your lost "${newItem.title}". Click to view and submit a claim.`
+          : `Someone's lost report for "${matchedItem.title}" (${matchedItem.location}) may match the "${newItem.title}" you found. They may contact you soon.`;
 
-    // Also notify the NEW item's poster if there are matches on the other side (in-app + email)
-    if (scored.length > 0 && newItem.postedBy?.email) {
-      const newItemPosterUserId = newItem.postedBy._id || newItem.postedBy;
-      const alreadyNotifiedPoster = await Notification.findOne({
-        user: newItemPosterUserId,
-        type: 'match_found',
-        link: `/item/${scored[0].item._id}`,
-      });
-
-      if (!alreadyNotifiedPoster) {
-        const bestMatch = scored[0].item;
-        const notifyTitle = newItem.status === 'found'
-          ? `📋 ${scored.length} person(s) may be looking for the item you found`
-          : `✅ We found ${scored.length} potential match(es) for your lost item!`;
-
-        const notifyMsg = newItem.status === 'found'
-          ? `${scored.length} lost report(s) match the "${newItem.title}" you found. They may contact you soon.`
-          : `The "${bestMatch.title}" (${bestMatch.location}) may be your lost "${newItem.title}". Check it out!`;
-
-        // In-app notification
         await Notification.create({
-          user: newItemPosterUserId,
+          user: newItemPosterId,
           type: 'match_found',
           title: notifyTitle,
           message: notifyMsg,
-          link: `/item/${bestMatch._id}`,
+          link: `/item/${matchedItem._id}`,
         });
+      }
+    }
 
-        // Email notification for the new item's poster
-        const emailHtml = buildEmailHtml({
+    // ── 3. One summary email to the new item's poster (if any matches) ────────
+    // Single email listing the best match — avoids spamming multiple emails
+    if (scored.length > 0 && newItem.postedBy?.email) {
+      const bestMatch = scored[0].item;
+      const emailTitle = newItem.status === 'lost'
+        ? `✅ We found ${scored.length} potential match(es) for your lost item!`
+        : `📋 ${scored.length} person(s) may be looking for the item you found`;
+      const emailMsg = newItem.status === 'lost'
+        ? `${scored.length} found report(s) match your lost "${newItem.title}". Check them in your notifications and submit a claim!`
+        : `${scored.length} lost report(s) match the "${newItem.title}" you found. They may contact you soon.`;
+
+      await sendEmail({
+        email: newItem.postedBy.email,
+        subject: emailTitle,
+        message: emailMsg,
+        html: buildEmailHtml({
           recipientName: newItem.postedBy.fullName,
           yourItem: newItem,
           matchedItem: bestMatch,
           matchedItemStatus: bestMatch.status,
           matchUrl: `${clientUrl}/item/${bestMatch._id}`,
-        });
-
-        await sendEmail({
-          email: newItem.postedBy.email,
-          subject: notifyTitle,
-          message: notifyMsg,
-          html: emailHtml,
-        }).catch(err => console.error('[MatchEngine] Email to new poster failed:', err.message));
-      }
+        }),
+      }).catch(err => console.error('[MatchEngine] Email to new poster failed:', err.message));
     }
 
     return scored.length;

@@ -5,6 +5,7 @@ const {
   deleteUser,
   getStats,
   getAllClaims,
+  runMatchingBackfill,
 } = require('../controllers/adminController');
 
 const router = express.Router();
@@ -22,5 +23,8 @@ router.delete('/users/:id', deleteUser);
 
 // Role assignment is super-admin-only
 router.put('/users/:id/role', requireSuperAdmin, updateUserRole);
+
+// Run matching engine on all existing items (backfill historical data)
+router.post('/run-matching-backfill', runMatchingBackfill);
 
 module.exports = router;

@@ -2,6 +2,7 @@ const User = require('../models/User');
 const Item = require('../models/Item');
 const Claim = require('../models/Claim');
 const Notification = require('../models/Notification');
+const { runMatchingForItem } = require('../utils/matchItems');
 
 // @desc    Get all users
 // @route   GET /api/admin/users
@@ -143,6 +144,42 @@ exports.getStats = async (req, res, next) => {
           rejected: rejectedClaims
         }
       }
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// @desc    Run the matching engine on ALL existing active items
+// @route   POST /api/admin/run-matching-backfill
+// @access  Private/Admin
+// This fixes the historical gap: items posted before the engine was deployed
+// will now get matched against each other and notify both sides.
+exports.runMatchingBackfill = async (req, res, next) => {
+  try {
+    const clientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
+
+    // Fetch all active items with their poster's details populated
+    const activeItems = await Item.find({
+      status: { $in: ['lost', 'found'] },
+    }).populate('postedBy', 'email fullName _id');
+
+    let processed = 0;
+    let totalMatches = 0;
+
+    for (const item of activeItems) {
+      // Skip items without a valid poster (data integrity guard)
+      if (!item.postedBy?._id || !item.postedBy?.email) continue;
+
+      const matchCount = await runMatchingForItem(item, clientUrl);
+      totalMatches += matchCount;
+      processed++;
+    }
+
+    res.status(200).json({
+      success: true,
+      message: `Backfill complete. Processed ${processed} items, found ${totalMatches} total match notifications sent.`,
+      data: { itemsProcessed: processed, totalMatchNotifications: totalMatches },
     });
   } catch (err) {
     next(err);

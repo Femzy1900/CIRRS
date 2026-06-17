@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   Bell,
@@ -9,7 +9,11 @@ import {
   Trash2,
   Clock,
   Search,
-  HandHeart
+  HandHeart,
+  Mail,
+  Phone,
+  Copy,
+  CheckCheck,
 } from 'lucide-react';
 import Button from '../components/ui/Button';
 import Badge from '../components/ui/Badge';
@@ -17,6 +21,14 @@ import useNotificationStore from '../store/useNotificationStore';
 
 export default function Notifications() {
   const { notifications, fetchNotifications, markAsRead, clearAll, loading } = useNotificationStore();
+  const [copied, setCopied] = useState(null); // tracks which value was just copied
+
+  const copyToClipboard = (text, key) => {
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(key);
+      setTimeout(() => setCopied(null), 2000);
+    });
+  };
 
   useEffect(() => {
     fetchNotifications();
@@ -88,7 +100,57 @@ export default function Notifications() {
                       </div>
                     </div>
                     <p className="text-sm text-slate-400 leading-relaxed font-medium max-w-2xl">{notif.message}</p>
-                    
+
+                    {/* ── Finder contact card (finder_contact notifications only) ── */}
+                    {notif.type === 'finder_contact' && notif.meta && (
+                      <div className="mt-4 bg-emerald-500/5 border border-emerald-500/20 rounded-2xl p-5 space-y-3 max-w-sm">
+                        <p className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-400">Finder's Contact Details</p>
+                        <p className="text-sm font-bold text-white">{notif.meta.finderName}</p>
+
+                        {notif.meta.finderEmail && (
+                          <div className="flex items-center gap-3">
+                            <Mail size={14} className="text-emerald-400 shrink-0" />
+                            <a
+                              href={`mailto:${notif.meta.finderEmail}`}
+                              className="text-sm text-emerald-300 hover:text-emerald-200 transition-colors truncate"
+                            >
+                              {notif.meta.finderEmail}
+                            </a>
+                            <button
+                              onClick={() => copyToClipboard(notif.meta.finderEmail, `email-${notif._id}`)}
+                              className="ml-auto text-slate-500 hover:text-emerald-400 transition-colors shrink-0"
+                              title="Copy email"
+                            >
+                              {copied === `email-${notif._id}` ? <CheckCheck size={14} className="text-emerald-400" /> : <Copy size={14} />}
+                            </button>
+                          </div>
+                        )}
+
+                        {notif.meta.finderPhone && (
+                          <div className="flex items-center gap-3">
+                            <Phone size={14} className="text-emerald-400 shrink-0" />
+                            <a
+                              href={`tel:${notif.meta.finderPhone}`}
+                              className="text-sm text-emerald-300 hover:text-emerald-200 transition-colors"
+                            >
+                              {notif.meta.finderPhone}
+                            </a>
+                            <button
+                              onClick={() => copyToClipboard(notif.meta.finderPhone, `phone-${notif._id}`)}
+                              className="ml-auto text-slate-500 hover:text-emerald-400 transition-colors shrink-0"
+                              title="Copy phone"
+                            >
+                              {copied === `phone-${notif._id}` ? <CheckCheck size={14} className="text-emerald-400" /> : <Copy size={14} />}
+                            </button>
+                          </div>
+                        )}
+
+                        {!notif.meta.finderPhone && (
+                          <p className="text-[10px] text-slate-500 font-medium">No phone number provided — use email to reach them.</p>
+                        )}
+                      </div>
+                    )}
+
                     <div className="pt-4 flex items-center gap-4">
                       {notif.link && (
                         <Link to={notif.link}>

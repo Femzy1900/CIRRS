@@ -22,6 +22,10 @@ const notificationSchema = new mongoose.Schema({
   link: {
     type: String
   },
+  meta: {
+    type: mongoose.Schema.Types.Mixed,
+    default: null,
+  },
   read: {
     type: Boolean,
     default: false

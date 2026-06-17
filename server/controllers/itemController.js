@@ -201,17 +201,22 @@ exports.contactItem = async (req, res, next) => {
       throw new Error('You cannot contact yourself');
     }
 
-    // Get finder info for the notification message
-    const finder = await User.findById(req.user.id).select('fullName username');
+    // Get finder info for the notification
+    const finder = await User.findById(req.user.id).select('fullName username email phone');
     const finderName = finder?.fullName || finder?.username || 'Someone';
 
-    // Notify the poster
+    // Notify the poster — include finder's contact in meta so the poster can see it
     await Notification.create({
       user: posterId,
       type: 'finder_contact',
       title: '📦 Someone found your item!',
-      message: `${finderName} says they found your lost item: "${item.title}". Check their contact details to arrange return.`,
+      message: `${finderName} says they found your lost item: "${item.title}". Their contact details are shown below — reach out to arrange the return.`,
       link: `/item/${item._id}`,
+      meta: {
+        finderName,
+        finderEmail: finder?.email || null,
+        finderPhone: finder?.phone || null,
+      },
     });
 
     // Return the poster's contact details

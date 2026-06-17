@@ -38,11 +38,16 @@ const ClaimSchema = new mongoose.Schema({
 
   // ── Status (state machine) ──────────────────────────────────────────────────
   // pending → under_review → approved / rejected / escalated / disputed
+  // withdrawn: claimant retracted a pending claim to resubmit (max 1 withdrawal allowed)
   status: {
     type: String,
-    enum: ['pending', 'under_review', 'approved', 'rejected', 'disputed', 'escalated'],
+    enum: ['pending', 'under_review', 'approved', 'rejected', 'disputed', 'escalated', 'withdrawn'],
     default: 'pending'
   },
+
+  // ── Resubmission tracking ───────────────────────────────────────────────────
+  // Tracks which attempt this is (1 = first submission, 2 = after one withdrawal)
+  attemptNumber: { type: Number, default: 1 },
 
   // ── Risk routing decision ───────────────────────────────────────────────────
   riskRoute:   { type: String, enum: ['AUTO', 'FINDER_REVIEW', 'ADMIN_REVIEW'] },
@@ -61,7 +66,8 @@ const ClaimSchema = new mongoose.Schema({
   createdAt: { type: Date, default: Date.now }
 });
 
-// Prevent a user from submitting multiple claims for the same item
-ClaimSchema.index({ item: 1, claimant: 1 }, { unique: true });
+// Index for efficient lookups — uniqueness enforced in application code
+// (allows multiple rows per pair to support withdrawal + resubmission)
+ClaimSchema.index({ item: 1, claimant: 1 });
 
 module.exports = mongoose.model('Claim', ClaimSchema);

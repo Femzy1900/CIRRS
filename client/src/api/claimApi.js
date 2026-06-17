@@ -51,7 +51,13 @@ const claimApi = {
   getClaimAudit: async (claimId) => {
     const response = await axiosInstance.get(`/claims/${claimId}/audit`);
     return response.data;
-  }
+  },
+
+  /** Withdraw a pending claim (attempt 1 only) so the claimant can resubmit */
+  withdrawClaim: async (claimId) => {
+    const response = await axiosInstance.put(`/claims/${claimId}/withdraw`);
+    return response.data;
+  },
 };
 
 export default claimApi;

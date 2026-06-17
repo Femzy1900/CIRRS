@@ -5,12 +5,14 @@ import useAuthStore from '../store/useAuthStore';
 import {
   ShieldCheck, ArrowLeft, Info, Send, Lock,
   CheckCircle, XCircle, Phone, Mail, User,
-  AlertTriangle, Unlock, HelpCircle, Clock, MapPin, Hourglass
+  AlertTriangle, Unlock, HelpCircle, Clock, MapPin, Hourglass,
+  RotateCcw, Ban
 } from 'lucide-react';
 import { toast } from 'sonner';
 import Button from '../components/ui/Button';
 import Badge from '../components/ui/Badge';
 import claimApi from '../api/claimApi';
+import axiosInstance from '../api/axiosInstance';
 
 const STRICT_CATEGORIES = ['Money', 'Cards'];
 const RISK_COLORS = {
@@ -23,7 +25,7 @@ export default function SubmitClaim() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { items, fetchItems } = useItemStore();
-  const { isAuthenticated } = useAuthStore();
+  const { isAuthenticated, user } = useAuthStore();
 
   const [item, setItem] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -33,6 +35,15 @@ export default function SubmitClaim() {
   const [result, setResult] = useState(null);
   const [existingClaim, setExistingClaim] = useState(null);
   const [checkingClaim, setCheckingClaim] = useState(true);
+
+  // Resubmission state
+  const [pendingClaim, setPendingClaim] = useState(null);   // pending claim that can be withdrawn
+  const [withdrawing, setWithdrawing] = useState(false);
+  const [totalAttempts, setTotalAttempts] = useState(0);    // 0=none, 1=one done, 2=exhausted
+  const [attemptsExhausted, setAttemptsExhausted] = useState(false);
+
+  // Phone prompt (shown if user has no phone set)
+  const [phoneInput, setPhoneInput] = useState('');
 
   // Resolve item from store or fetch
   useEffect(() => {
@@ -58,8 +69,9 @@ export default function SubmitClaim() {
     claimApi.getMyClaimForItem(id)
       .then(res => {
         if (res.data?.claim) {
-          const { claim, finderContact } = res.data;
+          const { claim, finderContact, totalAttempts: attempts } = res.data;
           setExistingClaim(res.data);
+          setTotalAttempts(attempts || 1);
 
           if (claim.status === 'approved' || claim.passed) {
             setResult({ status: 'approved', passed: true, score: claim.score, totalQuestions: claim.totalQuestions, compositeScore: claim.compositeScore, finderContact });
@@ -67,6 +79,20 @@ export default function SubmitClaim() {
             setResult({ status: 'under_review', passed: false, score: claim.score, totalQuestions: claim.totalQuestions, compositeScore: claim.compositeScore, route: claim.riskRoute, reason: claim.routeReason });
           } else if (claim.status === 'rejected') {
             setResult({ status: 'rejected', passed: false, score: claim.score, totalQuestions: claim.totalQuestions, compositeScore: claim.compositeScore });
+          } else if (claim.status === 'pending') {
+            // Pending claim — show withdraw button if it's attempt 1 (can resubmit)
+            // Attempt 2 pending is treated like under_review (locked)
+            if (claim.attemptNumber < 2) {
+              setPendingClaim(claim);
+            } else {
+              setResult({ status: 'under_review', passed: false, score: claim.score, totalQuestions: claim.totalQuestions, compositeScore: claim.compositeScore, route: claim.riskRoute, reason: claim.routeReason });
+            }
+          } else if (claim.status === 'withdrawn') {
+            // Withdrawn: show form for attempt 2 (if not yet exhausted), or "all done" panel
+            if ((attempts || 1) >= 2) {
+              setAttemptsExhausted(true);
+            }
+            // else: fall through — form renders for attempt 2
           }
         }
       })
@@ -86,6 +112,26 @@ export default function SubmitClaim() {
     setAnswers(prev => ({ ...prev, [index]: value }));
   };
 
+  const handleWithdraw = async () => {
+    if (!pendingClaim) return;
+    setWithdrawing(true);
+    try {
+      await claimApi.withdrawClaim(pendingClaim._id);
+      toast.success('Claim withdrawn. You can now resubmit your answers.');
+      // Reset to form state for attempt 2
+      setPendingClaim(null);
+      setExistingClaim(null);
+      setAnswers({});
+      setLocationHint('');
+      setReportedTime('');
+      setTotalAttempts(1); // had 1 attempt, now can do attempt 2
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Failed to withdraw claim. Please try again.');
+    } finally {
+      setWithdrawing(false);
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!allAnswered) {
@@ -95,6 +141,12 @@ export default function SubmitClaim() {
 
     setLoading(true);
     try {
+      // Save phone to profile if user provided one and doesn't have one set
+      if (phoneInput.trim() && (!user?.phone || user.phone === '')) {
+        axiosInstance.put('/auth/updateprofile', { phone: phoneInput.trim() })
+          .catch(() => {}); // non-blocking — don't fail the claim submission if this fails
+      }
+
       const formattedAnswers = questions.map((q, i) => ({
         question:       q.question,
         providedAnswer: answers[i] || ''
@@ -118,7 +170,7 @@ export default function SubmitClaim() {
         toast.error(`Verification failed. ${score}/${totalQuestions} correct. Needed ${threshold}/${totalQuestions}.`);
       }
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Failed to submit. Please try again.');
+      toast.error(err.response?.data?.error || err.response?.data?.message || 'Failed to submit. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -135,20 +187,30 @@ export default function SubmitClaim() {
     );
   }
 
+  const isSecondAttempt = totalAttempts === 1 && !result && !pendingClaim && !attemptsExhausted;
+
   const badgeVariant = result?.status === 'approved'
     ? 'success'
     : result?.status === 'under_review'
     ? 'warning'
-    : existingClaim
+    : result?.status === 'rejected' || attemptsExhausted
     ? 'danger'
+    : pendingClaim
+    ? 'warning'
     : 'warning';
 
   const badgeLabel = result?.status === 'approved'
     ? '✓ Verified'
     : result?.status === 'under_review'
     ? '⏳ Under Review'
-    : existingClaim
-    ? 'Already Attempted'
+    : result?.status === 'rejected'
+    ? '✗ Rejected'
+    : attemptsExhausted
+    ? '🚫 No Attempts Left'
+    : pendingClaim
+    ? '⏳ Pending — Can Resubmit'
+    : isSecondAttempt
+    ? '⚠ Final Attempt'
     : 'Pending Verification';
 
   return (
@@ -220,6 +282,70 @@ export default function SubmitClaim() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 sm:gap-12">
         <div className="lg:col-span-2">
+
+          {/* ── WITHDRAW & RESUBMIT PANEL (pending attempt 1) ── */}
+          {!result && pendingClaim && (
+            <div className="glass-card p-5 sm:p-8 rounded-[2rem] sm:rounded-[3rem] border-amber-500/20 bg-amber-500/5 space-y-6 animate-fade-in">
+              <div className="flex items-center gap-6">
+                <div className="w-16 h-16 bg-amber-500/20 border border-amber-500/30 rounded-2xl flex items-center justify-center shrink-0">
+                  <RotateCcw size={28} className="text-amber-400" />
+                </div>
+                <div>
+                  <h2 className="text-2xl font-black text-white">Claim Pending</h2>
+                  <p className="text-amber-400 text-xs font-black uppercase tracking-widest mt-1">
+                    Attempt 1 of 2 · Not yet reviewed
+                  </p>
+                </div>
+              </div>
+              <div className="p-5 bg-white/5 rounded-2xl text-sm text-slate-400 leading-relaxed space-y-2">
+                <p>Your claim is pending and hasn't been reviewed yet. If you made a mistake in your answers, you can <strong className="text-white">withdraw it now</strong> and resubmit once more.</p>
+                <p className="text-xs text-amber-400/70 font-medium">⚠ Once withdrawn, you will have <strong>1 remaining attempt</strong>. This cannot be undone.</p>
+              </div>
+              <div className="flex flex-col sm:flex-row gap-3">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => navigate('/dashboard')}
+                  className="flex-1"
+                >
+                  Keep Claim — Go to Dashboard
+                </Button>
+                <button
+                  onClick={handleWithdraw}
+                  disabled={withdrawing}
+                  className="flex-1 flex items-center justify-center gap-2 py-3 px-6 text-sm uppercase tracking-widest font-black rounded-[2rem] border border-rose-500/30 bg-rose-500/10 text-rose-400 hover:bg-rose-500/20 transition-all disabled:opacity-60"
+                >
+                  {withdrawing ? (
+                    <span className="w-4 h-4 border-2 border-rose-400/30 border-t-rose-400 rounded-full animate-spin" />
+                  ) : (
+                    <RotateCcw size={16} />
+                  )}
+                  {withdrawing ? 'Withdrawing…' : 'Withdraw & Resubmit'}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* ── ALL ATTEMPTS EXHAUSTED PANEL ── */}
+          {!result && attemptsExhausted && (
+            <div className="glass-card p-5 sm:p-8 rounded-[2rem] sm:rounded-[3rem] border-rose-500/20 bg-rose-500/5 space-y-6 animate-fade-in">
+              <div className="flex items-center gap-6">
+                <div className="w-16 h-16 bg-rose-500/20 border border-rose-500/30 rounded-2xl flex items-center justify-center shrink-0">
+                  <Ban size={28} className="text-rose-400" />
+                </div>
+                <div>
+                  <h2 className="text-2xl font-black text-white">No Attempts Left</h2>
+                  <p className="text-rose-400 text-xs font-black uppercase tracking-widest mt-1">2 of 2 attempts used</p>
+                </div>
+              </div>
+              <div className="p-5 bg-white/5 rounded-2xl text-sm text-slate-400 leading-relaxed">
+                You have used both of your allowed attempts for this item. No further resubmission is permitted. If you believe this is your item, please contact campus security or visit the lost & found office directly.
+              </div>
+              <Button variant="ghost" size="sm" onClick={() => navigate('/')} className="w-full">
+                Browse Other Items
+              </Button>
+            </div>
+          )}
 
           {/* ── RESULT PANEL ── */}
           {result ? (
@@ -389,9 +515,23 @@ export default function SubmitClaim() {
                 </Button>
               </div>
             )
-          ) : (
+          ) : !pendingClaim && !attemptsExhausted ? (
             /* ── FORM ── */
             <form className="glass-card p-5 sm:p-10 rounded-[2rem] sm:rounded-[3rem] border-white/5 space-y-8 sm:space-y-10" onSubmit={handleSubmit}>
+
+              {/* ── Final attempt warning ── */}
+              {isSecondAttempt && (
+                <div className="flex gap-4 p-5 bg-amber-950/30 border border-amber-500/30 rounded-[2rem]">
+                  <AlertTriangle size={20} className="text-amber-400 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-xs font-black text-amber-400 uppercase tracking-widest mb-1">Final Attempt — Attempt 2 of 2</p>
+                    <p className="text-xs text-amber-300/80 leading-relaxed">
+                      This is your last submission for this item. Read each question carefully before submitting — you cannot resubmit after this.
+                    </p>
+                  </div>
+                </div>
+              )}
+
               <div className="space-y-6">
                 <p className="text-xs text-slate-400 leading-relaxed">
                   Answer the {questions.length} question{questions.length !== 1 ? 's' : ''} below.
@@ -458,6 +598,26 @@ export default function SubmitClaim() {
                 </div>
               </div>
 
+              {/* ── Phone prompt (only shown if user has no phone on profile) ── */}
+              {(!user?.phone || user.phone === '') && (
+                <div className="p-5 bg-brand-gold/5 border border-brand-gold/20 rounded-[2rem] space-y-3">
+                  <p className="text-[10px] font-black uppercase tracking-[0.2em] text-brand-gold flex items-center gap-2">
+                    <Phone size={12} />
+                    Add Phone Number (Recommended)
+                  </p>
+                  <p className="text-xs text-slate-400 leading-relaxed">
+                    Helps the finder reach you faster if your claim is approved. You can skip this.
+                  </p>
+                  <input
+                    type="tel"
+                    placeholder="e.g. 08012345678"
+                    value={phoneInput}
+                    onChange={e => setPhoneInput(e.target.value)}
+                    className="input-field w-full"
+                  />
+                </div>
+              )}
+
               <div className="pt-4">
                 <Button
                   loading={loading}
@@ -483,7 +643,7 @@ export default function SubmitClaim() {
                 )}
               </div>
             </form>
-          )}
+          ) : null}
         </div>
 
         {/* Sidebar */}

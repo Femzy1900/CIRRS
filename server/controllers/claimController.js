@@ -100,10 +100,22 @@ exports.submitClaim = async (req, res, next) => {
       throw new Error('You cannot submit a claim for an item you reported.');
     }
 
-    const existing = await Claim.findOne({ item: item._id, claimant: req.user.id });
-    if (existing) {
+    // Block if an ACTIVE (non-withdrawn) claim already exists
+    const activeClaim = await Claim.findOne({
+      item:     item._id,
+      claimant: req.user.id,
+      status:   { $ne: 'withdrawn' },
+    });
+    if (activeClaim) {
       res.status(400);
-      throw new Error('You have already submitted a claim for this item.');
+      throw new Error('You already have an active claim for this item. Withdraw your pending claim first to resubmit.');
+    }
+
+    // Enforce max 2 total attempts (including withdrawn ones)
+    const totalAttempts = await Claim.countDocuments({ item: item._id, claimant: req.user.id });
+    if (totalAttempts >= 2) {
+      res.status(400);
+      throw new Error('You have used all 2 attempts for this item and cannot resubmit.');
     }
 
     // ── Grade answers ─────────────────────────────────────────────────────────
@@ -151,6 +163,7 @@ exports.submitClaim = async (req, res, next) => {
       routeReason:    reason,
       fraudFlags,
       isFlagged,
+      attemptNumber:  totalAttempts + 1,   // 1 = first attempt, 2 = resubmission
       auditLog: [{
         action:    passed ? 'auto_approved' : 'submitted',
         actorRole: 'system',
@@ -269,14 +282,30 @@ exports.getItemClaims = async (req, res, next) => {
 // ─────────────────────────────────────────────────────────────────────────────
 exports.getMyClaimForItem = async (req, res, next) => {
   try {
-    const claim = await Claim.findOne({
+    // Prefer the active (non-withdrawn) claim; fall back to latest withdrawn one
+    let claim = await Claim.findOne({
       item:     req.params.itemId,
-      claimant: req.user.id
-    }).populate('item', 'title postedBy');
+      claimant: req.user.id,
+      status:   { $ne: 'withdrawn' },
+    }).populate('item', 'title postedBy').sort({ createdAt: -1 });
+
+    if (!claim) {
+      // No active claim — check for withdrawn ones (tells client attempt count)
+      claim = await Claim.findOne({
+        item:     req.params.itemId,
+        claimant: req.user.id,
+      }).populate('item', 'title postedBy').sort({ createdAt: -1 });
+    }
 
     if (!claim) {
       return res.status(200).json({ success: true, data: null });
     }
+
+    // Total attempts across all claim docs for this (item, claimant) pair
+    const totalAttempts = await Claim.countDocuments({
+      item:     req.params.itemId,
+      claimant: req.user.id,
+    });
 
     // If approved, also return finder contact info
     let finderContact = null;
@@ -291,7 +320,7 @@ exports.getMyClaimForItem = async (req, res, next) => {
       }
     }
 
-    res.status(200).json({ success: true, data: { claim, finderContact } });
+    res.status(200).json({ success: true, data: { claim, finderContact, totalAttempts } });
   } catch (err) {
     next(err);
   }
@@ -442,6 +471,51 @@ exports.updateClaimStatus = async (req, res, next) => {
       return res.status(200).json({ success: true, data: claim });
     }
 
+  } catch (err) {
+    next(err);
+  }
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// @desc    Withdraw a pending claim (claimant only, max once per item)
+// @route   PUT /api/claims/:id/withdraw
+// @access  Private
+// ─────────────────────────────────────────────────────────────────────────────
+exports.withdrawClaim = async (req, res, next) => {
+  try {
+    const claim = await Claim.findById(req.params.id).populate('item', 'title');
+
+    if (!claim) {
+      res.status(404);
+      throw new Error('Claim not found');
+    }
+
+    if (claim.claimant.toString() !== req.user.id) {
+      res.status(403);
+      throw new Error('Not authorised to withdraw this claim');
+    }
+
+    if (claim.status !== 'pending') {
+      res.status(400);
+      throw new Error('Only pending claims can be withdrawn. Once a claim is under review it cannot be retracted.');
+    }
+
+    // Only allow withdrawal on attempt 1 (attempt 2 is the last — no point withdrawing)
+    if (claim.attemptNumber >= 2) {
+      res.status(400);
+      throw new Error('You cannot withdraw your final attempt. This is your last submission for this item.');
+    }
+
+    claim.status = 'withdrawn';
+    claim.auditLog.push({
+      action:    'withdrawn',
+      actor:     req.user.id,
+      actorRole: 'claimant',
+      note:      'Claimant withdrew pending claim to resubmit'
+    });
+    await claim.save();
+
+    res.status(200).json({ success: true, data: {} });
   } catch (err) {
     next(err);
   }

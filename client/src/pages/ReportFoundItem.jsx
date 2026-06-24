@@ -173,14 +173,22 @@ export default function ReportFoundItem() {
         if (uploadRes.success) imageUrl = uploadRes.url;
       }
 
-      await addItem({
+      const res = await addItem({
         ...data,
         status: 'found',
         image: imageUrl,
         verificationQuestions: validQuestions,
       });
 
-      toast.success('Found item reported successfully!');
+      if (res?.questionWarnings?.length) {
+        toast.warning(
+          `Item saved! However, ${res.questionWarnings.length} verification question(s) may be too easy to guess:\n` +
+          res.questionWarnings.join(' | '),
+          { duration: 8000 }
+        );
+      } else {
+        toast.success('Found item reported successfully!');
+      }
       navigate('/dashboard');
     } catch (err) {
       setLoading(false);

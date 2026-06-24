@@ -57,7 +57,8 @@ const useItemStore = create((set, get) => ({
         filteredItems: [createdItem, ...state.filteredItems],
         loading: false
       }));
-      return createdItem;
+      // Return full response so callers can read questionWarnings
+      return data;
     } catch (err) {
       const msg = err.response?.data?.message || 'Failed to add item';
       set({ error: msg, loading: false });

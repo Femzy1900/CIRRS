@@ -3,6 +3,30 @@ const User = require('../models/User');
 const Notification = require('../models/Notification');
 const { runMatchingForItem } = require('../utils/matchItems');
 
+// ── Question quality checker (soft warning, non-blocking) ─────────────────────
+const TRIVIAL_ANSWERS = new Set([
+  'yes','no','black','white','red','blue','green','yellow','brown','grey','gray',
+  'pink','purple','orange','true','false','1','2','3','none','other','big','small',
+  'new','old','round','square','metal','plastic','leather','unknown',
+]);
+
+function checkQuestionQuality(questions) {
+  if (!Array.isArray(questions) || questions.length === 0) return [];
+  const warnings = [];
+  const seen = new Set();
+  questions.forEach((q, i) => {
+    const qText = (q.question || '').trim();
+    const aText = (q.answer   || '').trim().toLowerCase();
+    const label = `Q${i + 1}`;
+    if (qText.length < 10)          warnings.push(`${label}: Question is too short — be more specific.`);
+    if (aText.length < 4)           warnings.push(`${label}: Answer is too short — use at least 4 characters.`);
+    if (TRIVIAL_ANSWERS.has(aText)) warnings.push(`${label}: Answer "${aText}" is too common and easy to guess.`);
+    if (seen.has(qText.toLowerCase())) warnings.push(`${label}: Duplicate question detected.`);
+    seen.add(qText.toLowerCase());
+  });
+  return warnings;
+}
+
 // @desc    Get all items (with filtering, search, pagination)
 // @route   GET /api/items
 // @access  Public
@@ -119,7 +143,8 @@ exports.createItem = async (req, res, next) => {
       if (count > 0) console.log(`[MatchEngine] Found ${count} match(es) for item "${item.title}"`);
     });
 
-    res.status(201).json({ success: true, data: populated });
+    const questionWarnings = checkQuestionQuality(populated.verificationQuestions);
+    res.status(201).json({ success: true, data: populated, questionWarnings });
   } catch (err) {
     next(err);
   }
@@ -147,7 +172,8 @@ exports.updateItem = async (req, res, next) => {
       runValidators: true,
     }).populate('postedBy', 'email fullName username profileImage _id');
 
-    res.status(200).json({ success: true, data: item });
+    const questionWarnings = checkQuestionQuality(item.verificationQuestions);
+    res.status(200).json({ success: true, data: item, questionWarnings });
   } catch (err) {
     next(err);
   }

@@ -52,6 +52,9 @@ export default function AdminDashboard() {
   const [roleFilter, setRoleFilter] = useState('all');
   const [flaggedClaims, setFlaggedClaims] = useState([]);
   const [loadingFlagged, setLoadingFlagged] = useState(false);
+  const [complaints, setComplaints] = useState([]);
+  const [loadingComplaints, setLoadingComplaints] = useState(false);
+  const [adminNotes, setAdminNotes] = useState({});
 
   useEffect(() => {
     fetchStats();
@@ -69,6 +72,18 @@ export default function AdminDashboard() {
         .then(res => setFlaggedClaims(res.data || []))
         .catch(() => setFlaggedClaims([]))
         .finally(() => setLoadingFlagged(false));
+    });
+  }, [activeTab]);
+
+  // Load complaints when switching to that tab
+  useEffect(() => {
+    if (activeTab !== 'complaints') return;
+    setLoadingComplaints(true);
+    import('../../api/complaintApi').then(mod => {
+      mod.default.getComplaints()
+        .then(res => setComplaints(res.data || []))
+        .catch(() => setComplaints([]))
+        .finally(() => setLoadingComplaints(false));
     });
   }, [activeTab]);
 
@@ -195,6 +210,7 @@ export default function AdminDashboard() {
           { id: 'items', label: 'Report Moderation', icon: Package },
           { id: 'claims', label: 'Claims Audit', icon: FileCheck },
           { id: 'flagged', label: 'Flagged Claims', icon: Flag },
+          { id: 'complaints', label: 'Complaints', icon: ArrowUpCircle },
         ].map((tab) => (
           <button
             key={tab.id}
@@ -822,6 +838,164 @@ export default function AdminDashboard() {
                       >
                         <Eye size={16} />
                       </button>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── COMPLAINTS TAB ── */}
+      {activeTab === 'complaints' && (
+        <div className="space-y-8 animate-fade-in">
+          <div className="glass-card p-5 sm:p-8 rounded-[2rem] sm:rounded-[2.5rem] border-white/5 flex items-center gap-4">
+            <div className="p-3 bg-amber-500/10 text-amber-400 border border-amber-500/20 rounded-2xl shrink-0">
+              <ArrowUpCircle size={24} />
+            </div>
+            <div>
+              <h4 className="text-sm font-black text-white uppercase tracking-wider">Ownership Complaints</h4>
+              <p className="text-xs text-slate-400 font-medium mt-1">
+                Appeals from claimants who failed verification but believe they are the rightful owner.
+                Approving a complaint will notify the claimant and (if a claim exists) release the finder's contact details.
+              </p>
+            </div>
+          </div>
+
+          {loadingComplaints ? (
+            <div className="space-y-3">
+              {[1, 2, 3].map(i => <div key={i} className="h-24 bg-white/5 rounded-2xl animate-pulse" />)}
+            </div>
+          ) : complaints.length === 0 ? (
+            <div className="p-12 glass-card rounded-[2.5rem] border-white/5 text-center">
+              <div className="w-16 h-16 bg-emerald-500/10 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                <CheckCircle size={32} className="text-emerald-500" />
+              </div>
+              <p className="text-slate-400 font-black uppercase tracking-widest text-sm">No complaints</p>
+              <p className="text-slate-600 text-xs mt-2">No users have filed ownership appeals.</p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {complaints.map(complaint => (
+                <div key={complaint._id} className={`glass-card p-5 sm:p-8 rounded-[2rem] border space-y-5 ${
+                  complaint.status === 'pending'
+                    ? 'border-amber-500/20 bg-amber-500/5'
+                    : complaint.status === 'approved'
+                    ? 'border-emerald-500/20 bg-emerald-500/5'
+                    : 'border-white/5 bg-white/2'
+                }`}>
+                  {/* Header row */}
+                  <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+                    <div className="flex items-center gap-4">
+                      <div className="w-12 h-12 bg-amber-500/10 rounded-2xl flex items-center justify-center border border-amber-500/20 shrink-0">
+                        <ArrowUpCircle size={20} className="text-amber-400" />
+                      </div>
+                      <div>
+                        <p className="text-white font-black">{complaint.claimant?.fullName}</p>
+                        <p className="text-xs text-slate-500">@{complaint.claimant?.username} · {complaint.claimant?.email}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3 shrink-0">
+                      <span className={`text-[9px] font-black uppercase px-2 py-1 rounded-xl border ${
+                        complaint.status === 'pending'
+                          ? 'text-amber-400 bg-amber-500/10 border-amber-500/20'
+                          : complaint.status === 'approved'
+                          ? 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20'
+                          : 'text-slate-500 bg-white/5 border-white/10'
+                      }`}>{complaint.status}</span>
+                      <button
+                        onClick={() => navigate(`/item/${complaint.item?._id}`)}
+                        className="p-2 text-slate-400 hover:text-brand-gold rounded-xl transition-colors"
+                        title="View item"
+                      >
+                        <Eye size={16} />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Item info */}
+                  {complaint.item && (
+                    <div className="p-4 bg-white/5 rounded-2xl flex items-center gap-4">
+                      {complaint.item.image && (
+                        <img src={complaint.item.image} alt={complaint.item.title} className="w-12 h-12 rounded-xl object-cover border border-white/10 shrink-0" />
+                      )}
+                      <div>
+                        <p className="text-sm font-black text-white">{complaint.item.title}</p>
+                        <p className="text-[10px] text-slate-500 mt-0.5">{complaint.item.category} · {complaint.item.location}</p>
+                      </div>
+                      {complaint.claim && (
+                        <div className="ml-auto text-right shrink-0">
+                          <p className="text-[9px] text-slate-500 uppercase tracking-widest font-black">Claim score</p>
+                          <p className="text-sm font-black text-white">
+                            {complaint.claim.score}/{complaint.claim.totalQuestions}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Complaint message */}
+                  <div className="p-5 bg-white/5 rounded-2xl space-y-2">
+                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Claimant's Statement</p>
+                    <p className="text-sm text-slate-300 leading-relaxed">{complaint.message}</p>
+                  </div>
+
+                  {/* Admin note (if already reviewed) */}
+                  {complaint.adminNote && (
+                    <div className="p-4 bg-white/5 rounded-2xl">
+                      <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1">Admin Note</p>
+                      <p className="text-xs text-slate-400 italic">{complaint.adminNote}</p>
+                    </div>
+                  )}
+
+                  {/* Actions (pending only) */}
+                  {complaint.status === 'pending' && (
+                    <div className="space-y-3 pt-1">
+                      <div>
+                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1 block">
+                          Admin Note (optional)
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="Add a note for the claimant..."
+                          value={adminNotes[complaint._id] || ''}
+                          onChange={e => setAdminNotes(prev => ({ ...prev, [complaint._id]: e.target.value }))}
+                          className="w-full px-4 py-2.5 bg-white/5 border border-white/5 focus:border-brand-gold/50 focus:bg-white/10 rounded-2xl text-xs text-white placeholder:text-slate-500 outline-none transition-all"
+                        />
+                      </div>
+                      <div className="flex gap-3">
+                        <button
+                          onClick={async () => {
+                            try {
+                              const mod = (await import('../../api/complaintApi')).default;
+                              await mod.reviewComplaint(complaint._id, 'approved', adminNotes[complaint._id] || '');
+                              setComplaints(prev => prev.map(c => c._id === complaint._id ? { ...c, status: 'approved', adminNote: adminNotes[complaint._id] || '' } : c));
+                              toast.success('Complaint approved — claimant notified.');
+                            } catch (err) {
+                              toast.error(err.response?.data?.message || 'Failed to approve complaint.');
+                            }
+                          }}
+                          className="flex-1 py-2.5 bg-emerald-500/15 text-emerald-400 text-xs font-black rounded-2xl hover:bg-emerald-500 hover:text-white transition-colors border border-emerald-500/20"
+                        >
+                          ✓ Approve Claim
+                        </button>
+                        <button
+                          onClick={async () => {
+                            try {
+                              const mod = (await import('../../api/complaintApi')).default;
+                              await mod.reviewComplaint(complaint._id, 'dismissed', adminNotes[complaint._id] || '');
+                              setComplaints(prev => prev.map(c => c._id === complaint._id ? { ...c, status: 'dismissed', adminNote: adminNotes[complaint._id] || '' } : c));
+                              toast.success('Complaint dismissed.');
+                            } catch (err) {
+                              toast.error(err.response?.data?.message || 'Failed to dismiss complaint.');
+                            }
+                          }}
+                          className="flex-1 py-2.5 bg-rose-500/15 text-rose-400 text-xs font-black rounded-2xl hover:bg-rose-500 hover:text-white transition-colors border border-rose-500/20"
+                        >
+                          ✗ Dismiss
+                        </button>
+                      </div>
                     </div>
                   )}
                 </div>

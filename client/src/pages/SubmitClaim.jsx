@@ -12,6 +12,7 @@ import { toast } from 'sonner';
 import Button from '../components/ui/Button';
 import Badge from '../components/ui/Badge';
 import claimApi from '../api/claimApi';
+import complaintApi from '../api/complaintApi';
 import axiosInstance from '../api/axiosInstance';
 
 const STRICT_CATEGORIES = ['Money', 'Cards'];
@@ -44,6 +45,12 @@ export default function SubmitClaim() {
 
   // Phone prompt (shown if user has no phone set)
   const [phoneInput, setPhoneInput] = useState('');
+
+  // Complaint / appeal to admin
+  const [showComplaintForm, setShowComplaintForm] = useState(false);
+  const [complaintMsg, setComplaintMsg] = useState('');
+  const [submittingComplaint, setSubmittingComplaint] = useState(false);
+  const [complaintSubmitted, setComplaintSubmitted] = useState(false);
 
   // Resolve item from store or fetch
   useEffect(() => {
@@ -173,6 +180,21 @@ export default function SubmitClaim() {
       toast.error(err.response?.data?.error || err.response?.data?.message || 'Failed to submit. Please try again.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleComplaint = async () => {
+    if (!complaintMsg.trim()) return;
+    setSubmittingComplaint(true);
+    try {
+      const claimId = existingClaim?.claim?._id || result?.claimId || null;
+      await complaintApi.submitComplaint(item._id || item.id, claimId, complaintMsg.trim());
+      setComplaintSubmitted(true);
+      toast.success('Complaint submitted. Admin will review and contact you.');
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to submit complaint. Please try again.');
+    } finally {
+      setSubmittingComplaint(false);
     }
   };
 
@@ -339,8 +361,54 @@ export default function SubmitClaim() {
                 </div>
               </div>
               <div className="p-5 bg-white/5 rounded-2xl text-sm text-slate-400 leading-relaxed">
-                You have used both of your allowed attempts for this item. No further resubmission is permitted. If you believe this is your item, please contact campus security or visit the lost & found office directly.
+                You have used both of your allowed attempts for this item. No further resubmission is permitted. If you are confident this is your item, you can submit an appeal to admin below.
               </div>
+
+              {/* ── Complaint / Admin Appeal ─────────────────────── */}
+              {!complaintSubmitted ? (
+                <div className="space-y-3">
+                  {!showComplaintForm ? (
+                    <button
+                      onClick={() => setShowComplaintForm(true)}
+                      className="w-full flex items-center justify-center gap-2 py-3 px-6 text-xs uppercase tracking-widest font-black rounded-[2rem] border border-amber-500/30 bg-amber-500/5 text-amber-400 hover:bg-amber-500/15 transition-all"
+                    >
+                      Contact Admin — I believe I'm the owner
+                    </button>
+                  ) : (
+                    <div className="p-5 bg-amber-500/5 border border-amber-500/20 rounded-2xl space-y-3">
+                      <p className="text-[10px] font-black uppercase tracking-widest text-amber-400">Appeal to Admin</p>
+                      <textarea
+                        placeholder="Explain clearly why you believe this item is yours — include specific details the questions may not have covered..."
+                        value={complaintMsg}
+                        onChange={e => setComplaintMsg(e.target.value)}
+                        className="input-field w-full h-28 resize-none"
+                        maxLength={1000}
+                      />
+                      <div className="flex gap-3">
+                        <button
+                          onClick={() => setShowComplaintForm(false)}
+                          className="flex-1 py-2 text-xs font-black uppercase tracking-widest text-slate-500 hover:text-white transition-all"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          onClick={handleComplaint}
+                          disabled={!complaintMsg.trim() || submittingComplaint}
+                          className="flex-1 flex items-center justify-center gap-2 py-3 px-6 text-xs uppercase tracking-widest font-black rounded-[2rem] border border-brand-gold/30 bg-brand-gold/10 text-brand-gold hover:bg-brand-gold/20 transition-all disabled:opacity-50"
+                        >
+                          {submittingComplaint ? <span className="w-3 h-3 border-2 border-brand-gold/30 border-t-brand-gold rounded-full animate-spin" /> : null}
+                          {submittingComplaint ? 'Submitting…' : 'Submit Appeal'}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <p className="text-xs text-emerald-400 font-black text-center py-2">
+                  ✓ Appeal submitted — admin will review and contact you.
+                </p>
+              )}
+
               <Button variant="ghost" size="sm" onClick={() => navigate('/')} className="w-full">
                 Browse Other Items
               </Button>
@@ -507,8 +575,53 @@ export default function SubmitClaim() {
 
                 <div className="p-6 bg-white/5 rounded-2xl text-sm text-slate-400 leading-relaxed">
                   You answered <strong className="text-white">{result.score}</strong> out of <strong className="text-white">{result.totalQuestions}</strong> questions correctly.
-                  {' '}You may not resubmit a claim for this item. If you believe this is your item, contact campus security.
+                  {' '}You may not resubmit. If you are confident this is your item, you can appeal to an admin below.
                 </div>
+
+                {/* ── Complaint / Admin Appeal ─────────────────────── */}
+                {!complaintSubmitted ? (
+                  <div className="space-y-3">
+                    {!showComplaintForm ? (
+                      <button
+                        onClick={() => setShowComplaintForm(true)}
+                        className="w-full flex items-center justify-center gap-2 py-3 px-6 text-xs uppercase tracking-widest font-black rounded-[2rem] border border-amber-500/30 bg-amber-500/5 text-amber-400 hover:bg-amber-500/15 transition-all"
+                      >
+                        Contact Admin — I believe I'm the owner
+                      </button>
+                    ) : (
+                      <div className="p-5 bg-amber-500/5 border border-amber-500/20 rounded-2xl space-y-3">
+                        <p className="text-[10px] font-black uppercase tracking-widest text-amber-400">Appeal to Admin</p>
+                        <textarea
+                          placeholder="Explain clearly why you believe this item is yours — include specific details the questions may not have covered..."
+                          value={complaintMsg}
+                          onChange={e => setComplaintMsg(e.target.value)}
+                          className="input-field w-full h-28 resize-none"
+                          maxLength={1000}
+                        />
+                        <div className="flex gap-3">
+                          <button
+                            onClick={() => setShowComplaintForm(false)}
+                            className="flex-1 py-2 text-xs font-black uppercase tracking-widest text-slate-500 hover:text-white transition-all"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            onClick={handleComplaint}
+                            disabled={!complaintMsg.trim() || submittingComplaint}
+                            className="flex-1 flex items-center justify-center gap-2 py-3 px-6 text-xs uppercase tracking-widest font-black rounded-[2rem] border border-brand-gold/30 bg-brand-gold/10 text-brand-gold hover:bg-brand-gold/20 transition-all disabled:opacity-50"
+                          >
+                            {submittingComplaint ? <span className="w-3 h-3 border-2 border-brand-gold/30 border-t-brand-gold rounded-full animate-spin" /> : null}
+                            {submittingComplaint ? 'Submitting…' : 'Submit Appeal'}
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <p className="text-xs text-emerald-400 font-black text-center py-2">
+                    ✓ Appeal submitted — admin will review and contact you.
+                  </p>
+                )}
 
                 <Button variant="ghost" size="sm" onClick={() => navigate('/')} className="w-full">
                   Browse Other Items

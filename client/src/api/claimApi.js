@@ -58,6 +58,12 @@ const claimApi = {
     const response = await axiosInstance.put(`/claims/${claimId}/withdraw`);
     return response.data;
   },
+
+  /** Dispute a rejected claim (claimant only) */
+  disputeClaim: async (claimId, reason) => {
+    const response = await axiosInstance.post(`/claims/${claimId}/dispute`, { reason });
+    return response.data;
+  },
 };
 
 export default claimApi;

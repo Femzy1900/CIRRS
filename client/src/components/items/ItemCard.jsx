@@ -18,10 +18,15 @@ export default function ItemCard({ item }) {
           className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-1000"
         />
         <div className="absolute inset-0 bg-gradient-to-t from-slate-900/80 to-transparent"></div>
-        <div className="absolute top-3 left-3">
+        <div className="absolute top-3 left-3 flex items-center gap-1.5 flex-wrap">
           <span className={`px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-[0.2em] shadow-xl backdrop-blur-md border border-white/10 ${statusStyle}`}>
             {item.status}
           </span>
+          {item.hasApprovedClaim && item.status !== 'resolved' && (
+            <span className="px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-[0.15em] shadow-xl backdrop-blur-md border border-amber-500/30 bg-amber-500/90 text-white">
+              🔒 Pending Handover
+            </span>
+          )}
         </div>
         <div className="absolute bottom-3 right-3 opacity-0 group-hover:opacity-100 transition-all duration-500 translate-y-1 group-hover:translate-y-0">
           <span className="bg-brand-gold text-brand-blue-dark px-2.5 py-1 rounded-lg shadow-xl flex items-center gap-1.5 font-bold text-[10px]">

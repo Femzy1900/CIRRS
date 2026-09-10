@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Mail, ArrowLeft, CheckCircle2, Send } from 'lucide-react';
+import { Mail, ArrowLeft, CheckCircle2, Send, AlertTriangle, RefreshCw } from 'lucide-react';
 import useAuthStore from '../store/useAuthStore';
 
 const ForgotPassword = () => {
   const [email, setEmail] = useState('');
   const [isSubmitted, setIsSubmitted] = useState(false);
+  const [resending, setResending] = useState(false);
+  const [resendSuccess, setResendSuccess] = useState(false);
   const { forgotPassword, loading, error, setError } = useAuthStore();
 
   const handleSubmit = async (e) => {
@@ -19,12 +21,26 @@ const ForgotPassword = () => {
     }
   };
 
+  const handleResend = async () => {
+    if (!email || resending) return;
+    try {
+      setResending(true);
+      setResendSuccess(false);
+      await forgotPassword(email);
+      setResendSuccess(true);
+    } catch (err) {
+      // Error handled by store
+    } finally {
+      setResending(false);
+    }
+  };
+
   if (isSubmitted) {
     return (
       <div className="min-h-[80vh] flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 relative">
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-brand-blue/20 rounded-full blur-[120px] -z-10"></div>
 
-        <div className="max-w-md w-full text-center space-y-8 glass-card p-6 sm:p-12 rounded-[2rem] sm:rounded-[3rem] animate-fade-in border-white/10">
+        <div className="max-w-md w-full text-center space-y-6 glass-card p-6 sm:p-10 rounded-[2rem] sm:rounded-[3rem] animate-fade-in border-white/10">
           <div className="flex justify-center">
             <div className="bg-brand-gold/10 p-4 rounded-full border border-brand-gold/20 shadow-2xl shadow-brand-gold/5">
               <CheckCircle2 className="h-12 w-12 text-brand-gold" />
@@ -34,14 +50,53 @@ const ForgotPassword = () => {
             <h2 className="text-3xl sm:text-4xl font-black text-white tracking-tighter leading-tight">
               Check your <br /><span className="text-brand-gold">Inbox</span>
             </h2>
-            <p className="mt-6 text-sm text-slate-400 font-medium leading-relaxed">
+            <p className="mt-4 text-sm text-slate-300 font-medium leading-relaxed">
               A password reset link has been sent to <br />
               <span className="text-white font-bold">{email}</span>.
               <br /><br />
-              Click the link in the email, set a new password, then come back to sign in.
+              Click the link in the email, set a new password, then return to sign in.
             </p>
           </div>
-          <div className="pt-2">
+
+          {/* Spam / Junk Notice */}
+          <div className="bg-amber-500/10 border border-amber-500/20 p-4 rounded-2xl text-left space-y-1.5">
+            <div className="flex items-center gap-2 text-amber-400 font-bold text-xs uppercase tracking-wider">
+              <AlertTriangle size={15} />
+              <span>Check your Spam / Junk Folder</span>
+            </div>
+            <p className="text-xs text-slate-400 leading-relaxed">
+              If the email doesn't arrive in your primary inbox within 1–2 minutes, please be sure to check your <strong className="text-white">Spam</strong> or <strong className="text-white">Junk</strong> folder.
+            </p>
+          </div>
+
+          {resendSuccess && (
+            <div className="bg-emerald-500/10 border border-emerald-500/20 p-3 rounded-xl">
+              <p className="text-xs text-emerald-400 font-bold">✓ A new reset link has been sent to your email!</p>
+            </div>
+          )}
+
+          {/* Retry / Resend Actions */}
+          <div className="space-y-3 pt-2">
+            <button
+              onClick={handleResend}
+              disabled={resending}
+              className="w-full py-3 px-4 bg-white/5 hover:bg-white/10 border border-white/10 text-white rounded-xl text-xs font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+            >
+              <RefreshCw size={14} className={resending ? "animate-spin" : ""} />
+              {resending ? 'Sending new link...' : "Didn't get the email? Resend link"}
+            </button>
+
+            <div>
+              <button
+                onClick={() => { setIsSubmitted(false); setResendSuccess(false); }}
+                className="text-xs text-slate-400 hover:text-white transition-colors underline underline-offset-4"
+              >
+                Wrong email address? Try again
+              </button>
+            </div>
+          </div>
+
+          <div className="pt-4 border-t border-white/5">
             <Link
               to="/login"
               className="inline-flex items-center gap-2 text-xs font-black uppercase tracking-[0.2em] text-brand-gold hover:text-amber-300 transition-all group"

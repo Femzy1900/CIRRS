@@ -465,6 +465,11 @@ function ListCard({ item }) {
           <span className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest border border-white/10 ${statusStyle}`}>
             {item.status}
           </span>
+          {item.hasApprovedClaim && item.status !== 'resolved' && (
+            <span className="px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest bg-amber-500/90 border border-amber-500/30 text-white">
+              🔒 Pending Handover
+            </span>
+          )}
           <span className="text-[10px] font-black uppercase tracking-widest text-brand-gold/60">{item.category}</span>
         </div>
         <h3 className="text-base font-black text-white group-hover:text-brand-gold transition-colors truncate">{item.title}</h3>

@@ -14,7 +14,8 @@ router.post('/', protect, upload.single('image'), (req, res) => {
     
     res.status(200).json({
       success: true,
-      url: req.file.path // Cloudinary returns the URL in req.file.path
+      url:      req.file.path,       // Cloudinary secure URL
+      publicId: req.file.filename,   // Cloudinary public_id (e.g. cirrs_items/abc123)
     });
   } catch (err) {
     console.error(err);

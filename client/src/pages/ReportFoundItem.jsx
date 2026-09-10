@@ -166,17 +166,22 @@ export default function ReportFoundItem() {
 
     try {
       setLoading(true);
-      let imageUrl = 'https://placehold.co/600x400/020617/FFFFFF?text=No+Image+Available';
+      let imageUrl      = 'https://placehold.co/600x400/020617/FFFFFF?text=No+Image+Available';
+      let imagePublicId = null;
 
       if (imageFile) {
         const uploadRes = await uploadApi.uploadImage(imageFile);
-        if (uploadRes.success) imageUrl = uploadRes.url;
+        if (uploadRes.success) {
+          imageUrl      = uploadRes.url;
+          imagePublicId = uploadRes.publicId || null;
+        }
       }
 
       const res = await addItem({
         ...data,
         status: 'found',
         image: imageUrl,
+        imagePublicId,
         verificationQuestions: validQuestions,
       });
 

@@ -44,19 +44,22 @@ export default function ReportLostItem() {
   const onSubmit = async (data) => {
     try {
       setLoading(true);
-      let imageUrl = 'https://placehold.co/600x400/020617/FFFFFF?text=No+Image+Available';
+      let imageUrl   = 'https://placehold.co/600x400/020617/FFFFFF?text=No+Image+Available';
+      let imagePublicId = null;
       
       if (imageFile) {
         const uploadRes = await uploadApi.uploadImage(imageFile);
         if (uploadRes.success) {
-          imageUrl = uploadRes.url;
+          imageUrl      = uploadRes.url;
+          imagePublicId = uploadRes.publicId || null;
         }
       }
 
       await addItem({
         ...data,
         status: 'lost',
-        image: imageUrl
+        image: imageUrl,
+        imagePublicId,
       });
       setLoading(false);
       navigate('/dashboard');

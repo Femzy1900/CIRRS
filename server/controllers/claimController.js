@@ -12,8 +12,8 @@ const { detectFraud }  = require('../utils/fraudDetection');
 // Private helper: share finder contact details when a claim is approved
 // ─────────────────────────────────────────────────────────────────────────────
 async function approveAndShare({ claim, item, finder, claimantId, actorId, actorRole, reviewNote }) {
-  // Mark item as claimed (awaiting physical handover)
-  await Item.findByIdAndUpdate(item._id, { status: 'claimed' });
+  // Keep item status as 'found' so it remains publicly visible with 'Claim in Progress'
+  // until the finder confirms physical handover and marks it as 'resolved'.
 
   // Update claim to approved
   claim.status     = 'approved';
@@ -93,6 +93,13 @@ exports.submitClaim = async (req, res, next) => {
     if (!item.verificationQuestions || item.verificationQuestions.length === 0) {
       res.status(400);
       throw new Error('This item has no verification questions. Contact the finder directly.');
+    }
+
+    // Block new submissions if an approved claim already exists awaiting handover (Option A)
+    const approvedClaim = await Claim.findOne({ item: item._id, status: 'approved' });
+    if (approvedClaim) {
+      res.status(400);
+      throw new Error('This item already has an approved claim in progress awaiting physical handover.');
     }
 
     if (item.postedBy._id.toString() === req.user.id) {
@@ -365,6 +372,12 @@ exports.updateClaimStatus = async (req, res, next) => {
       throw new Error(`This claim is already ${claim.status} and cannot be changed.`);
     }
 
+    // Guard: if claim is escalated or disputed, only admin can resolve it
+    if (['escalated', 'disputed'].includes(claim.status) && !isAdmin) {
+      res.status(403);
+      throw new Error(`This claim is currently ${claim.status} and can only be resolved by an admin.`);
+    }
+
     // Guard: only admin can mark as disputed
     if (status === 'disputed' && !isAdmin) {
       res.status(403);
@@ -471,6 +484,80 @@ exports.updateClaimStatus = async (req, res, next) => {
       return res.status(200).json({ success: true, data: claim });
     }
 
+  } catch (err) {
+    next(err);
+  }
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// @desc    Dispute a rejected claim (claimant only, max once per claim)
+// @route   POST /api/claims/:id/dispute
+// @access  Private
+// ─────────────────────────────────────────────────────────────────────────────
+exports.disputeClaim = async (req, res, next) => {
+  try {
+    const { reason } = req.body;
+    if (!reason) {
+      res.status(400);
+      throw new Error('Please provide a reason for disputing this rejection');
+    }
+
+    const claim = await Claim.findById(req.params.id).populate('item', 'title postedBy');
+
+    if (!claim) {
+      res.status(404);
+      throw new Error('Claim not found');
+    }
+
+    if (claim.claimant.toString() !== req.user.id) {
+      res.status(403);
+      throw new Error('Not authorised to dispute this claim');
+    }
+
+    if (claim.status !== 'rejected') {
+      res.status(400);
+      throw new Error('Only rejected claims can be disputed');
+    }
+
+    // Check if they already disputed this claim. We can check the audit log.
+    const alreadyDisputed = claim.auditLog.some(log => log.action === 'disputed' && log.actor.toString() === req.user.id);
+    if (alreadyDisputed) {
+      res.status(400);
+      throw new Error('You have already disputed this claim once. The admin decision is final.');
+    }
+
+    claim.status = 'disputed';
+    claim.riskRoute = 'ADMIN_REVIEW';
+    claim.auditLog.push({
+      action:    'disputed',
+      actor:     req.user.id,
+      actorRole: 'claimant',
+      note:      reason || 'Claimant disputed the rejection'
+    });
+    await claim.save();
+
+    // Notify admins
+    const admins = await User.find({ role: 'admin' }).select('_id').lean();
+    await Notification.insertMany(
+      admins.map(admin => ({
+        user:    admin._id,
+        type:    'claim_submitted',
+        title:   'Claim Dispute requires Admin Review',
+        message: `A claimant has disputed the finder's rejection for "${claim.item.title}". Reason: "${reason}"`,
+        link:    `/item/${claim.item._id}`
+      }))
+    );
+
+    // Notify finder
+    await Notification.create({
+      user:    claim.item.postedBy,
+      type:    'claim_submitted',
+      title:   'Your rejection was disputed',
+      message: `The claimant disputed your rejection for "${claim.item.title}". An admin will review the case.`,
+      link:    `/item/${claim.item._id}`
+    });
+
+    res.status(200).json({ success: true, data: claim });
   } catch (err) {
     next(err);
   }

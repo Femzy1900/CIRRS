@@ -28,6 +28,7 @@ export default function ItemDetail() {
 
   const [claims, setClaims] = useState([]);
   const [loadingClaims, setLoadingClaims] = useState(false);
+  const [myClaim, setMyClaim] = useState(null);
   const [isEditing, setIsEditing] = useState(false);
   const [editForm, setEditForm] = useState({});
   const [saving, setSaving] = useState(false);
@@ -113,7 +114,8 @@ export default function ItemDetail() {
         const uploadRes = await uploadApi.uploadImage(imageFile);
         setUploadingImage(false);
         if (uploadRes.success) {
-          finalForm.image = uploadRes.url;
+          finalForm.image        = uploadRes.url;
+          finalForm.imagePublicId = uploadRes.publicId || null;
         } else {
           toast.error('Image upload failed. Other changes will still be saved.');
         }
@@ -166,6 +168,27 @@ export default function ItemDetail() {
     }
   };
 
+  const handleDisputeClaim = () => {
+    if (!myClaim) return;
+    const reason = window.prompt("Why are you disputing this rejection? Provide a brief reason:");
+    if (reason === null) return;
+    if (reason.trim() === "") {
+      toast.error("You must provide a reason to dispute.");
+      return;
+    }
+
+    claimApi.disputeClaim(myClaim._id, reason.trim())
+      .then(res => {
+        if (res.success) {
+          toast.success("Dispute submitted successfully to Admins.");
+          setMyClaim(res.data);
+        }
+      })
+      .catch(err => {
+        toast.error(err?.response?.data?.message || "Failed to submit dispute.");
+      });
+  };
+
   const handleShare = () => {
     navigator.clipboard?.writeText(window.location.href)
       .then(() => toast.success('Link copied to clipboard!'))
@@ -176,12 +199,12 @@ export default function ItemDetail() {
   // Also grab finderContact so we can show it in-page once approved
   useEffect(() => {
     if (!user || isPoster || !item || claimCheckDone) return;
-    if (!['claimed', 'resolved'].includes(item.status)) return;
 
     claimApi.getMyClaimForItem(item._id || item.id)
       .then(res => {
         if (res.success && res.data?.claim) {
           const { claim, finderContact } = res.data;
+          setMyClaim(claim);
           if (claim.passed || claim.status === 'approved') {
             setClaimPassed(true);
             if (finderContact) setClaimerContact(finderContact);
@@ -494,6 +517,11 @@ export default function ItemDetail() {
                   <span className={`px-4 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-[0.2em] border border-white/10 ${statusStyle}`}>
                     {item.status}
                   </span>
+                  {item.hasApprovedClaim && item.status !== 'resolved' && (
+                    <span className="px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-[0.15em] border border-amber-500/30 bg-amber-500/90 text-white">
+                      🔒 Pending Handover
+                    </span>
+                  )}
                   <span className="text-xs font-black text-brand-gold uppercase tracking-[0.25em]">{item.category}</span>
                   {item.riskLevel && (
                     <span className={`px-3 py-1 rounded-xl text-[10px] font-black uppercase tracking-widest border ${
@@ -546,7 +574,7 @@ export default function ItemDetail() {
               </div>
 
               {/* ── Claimed banner: poster prompted to confirm handover ── */}
-              {isPoster && isClaimed && (
+              {isPoster && (isClaimed || item.hasApprovedClaim) && !isResolved && (
                 <div className="p-6 bg-amber-500/10 border border-amber-500/30 rounded-[2rem] space-y-4">
                   <div className="flex items-start gap-3">
                     <div className="w-9 h-9 bg-amber-500/20 rounded-xl flex items-center justify-center shrink-0 mt-0.5">
@@ -586,7 +614,15 @@ export default function ItemDetail() {
 
               {/* ── Action buttons ── */}
               <div className="flex flex-wrap gap-4">
-                {!isPoster && isFound && (
+                {!isPoster && isFound && item.hasApprovedClaim && (
+                  <div className="w-full p-4 bg-amber-500/10 border border-amber-500/30 rounded-2xl text-center">
+                    <p className="text-amber-400 font-bold text-xs uppercase tracking-wider">
+                      🔒 A claim for this item has been verified. Physical handover is currently in progress.
+                    </p>
+                  </div>
+                )}
+
+                {!isPoster && isFound && !item.hasApprovedClaim && (
                   <Link to={`/submit-claim/${item._id || item.id}`} className="flex-grow">
                     <button className="w-full btn-accent flex items-center justify-center gap-3 py-4 text-sm uppercase tracking-[0.2em] font-black">
                       This is mine — Claim It
@@ -653,6 +689,57 @@ export default function ItemDetail() {
                   <Share2 size={22} />
                 </button>
               </div>
+
+              {/* ── My Claim Status (Claimant View) ── */}
+              {myClaim && (
+                <div className={`p-6 border rounded-[2rem] space-y-4 ${
+                  myClaim.status === 'approved' ? 'bg-emerald-500/10 border-emerald-500/30' :
+                  myClaim.status === 'rejected' ? 'bg-rose-500/10 border-rose-500/30' :
+                  myClaim.status === 'disputed' ? 'bg-indigo-500/10 border-indigo-500/30' :
+                  'bg-amber-500/10 border-amber-500/30'
+                }`}>
+                  <div className="flex items-start gap-3">
+                    <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 mt-0.5 ${
+                      myClaim.status === 'approved' ? 'bg-emerald-500/20 text-emerald-400' :
+                      myClaim.status === 'rejected' ? 'bg-rose-500/20 text-rose-400' :
+                      myClaim.status === 'disputed' ? 'bg-indigo-500/20 text-indigo-400' :
+                      'bg-amber-500/20 text-amber-400'
+                    }`}>
+                      {myClaim.status === 'approved' ? <Check size={18} /> :
+                       myClaim.status === 'rejected' ? <X size={18} /> :
+                       <Clock size={18} />}
+                    </div>
+                    <div>
+                      <p className={`font-black text-sm uppercase tracking-widest ${
+                        myClaim.status === 'approved' ? 'text-emerald-400' :
+                        myClaim.status === 'rejected' ? 'text-rose-400' :
+                        myClaim.status === 'disputed' ? 'text-indigo-400' :
+                        'text-amber-400'
+                      }`}>
+                        Claim {myClaim.status}
+                      </p>
+                      <p className="text-slate-400 text-xs mt-1 leading-relaxed">
+                        {myClaim.status === 'pending' && "Your claim is pending. The system is evaluating it."}
+                        {myClaim.status === 'under_review' && "Your claim is under manual review by the finder or admin."}
+                        {myClaim.status === 'approved' && "Congratulations! Your claim was approved. Contact the finder to get your item."}
+                        {myClaim.status === 'rejected' && "Your claim was rejected."}
+                        {myClaim.status === 'escalated' && "Your claim was escalated to an admin."}
+                        {myClaim.status === 'disputed' && "You disputed this rejection. An admin is reviewing it."}
+                        {myClaim.status === 'withdrawn' && "You withdrew this claim."}
+                      </p>
+                      
+                      {myClaim.status === 'rejected' && (
+                        <button 
+                          onClick={handleDisputeClaim}
+                          className="mt-4 w-full py-2 bg-indigo-500 text-white text-xs font-black uppercase tracking-widest rounded-xl hover:bg-indigo-400 transition-colors"
+                        >
+                          Dispute Rejection
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* ── Contact Info Panel (revealed after "I Found This") ── */}
               {contactInfo && isLost && !isPoster && (
@@ -818,15 +905,10 @@ export default function ItemDetail() {
           {isPoster && (isFound || isClaimed || isResolved) && (
             <div className="space-y-5 pt-4 border-t border-white/5">
               <div className="flex items-center justify-between">
-                <h3 className="text-xl font-black text-white uppercase tracking-widest">
-                  Claims
-                  {claims.length > 0 && (
-                    <span className="ml-3 w-7 h-7 inline-flex items-center justify-center bg-brand-gold text-brand-blue-dark rounded-lg text-xs font-black">
-                      {claims.length}
-                    </span>
-                  )}
+                <h3 className="text-xl font-black text-white uppercase tracking-widest flex items-center gap-3">
+                  <ShieldCheck size={20} className="text-brand-gold" />
+                  Submitted Claims ({claims.length})
                 </h3>
-                <span className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Risk-routed</span>
               </div>
 
               {loadingClaims ? (
@@ -841,12 +923,13 @@ export default function ItemDetail() {
               ) : (
                 <div className="space-y-4">
                   {claims.map(claim => {
-                    const isApproved    = claim.status === 'approved' || claim.passed;
-                    const isUnderReview = claim.status === 'under_review';
-                    const isEscalated   = claim.status === 'escalated';
+                    const isApproved    = claim.status === 'approved';
                     const isRejected    = claim.status === 'rejected';
+                    const isEscalated   = claim.status === 'escalated';
+                    const isDisputed    = claim.status === 'disputed';
+                    const isAdminResolutionNeeded = user?.role === 'admin' && (isEscalated || isDisputed);
                     // Finder can act on FINDER_REVIEW under_review claims (or old pending)
-                    const needsAction   = (isUnderReview && claim.riskRoute === 'FINDER_REVIEW') ||
+                    const needsAction   = (claim.status === 'under_review' && claim.riskRoute === 'FINDER_REVIEW') ||
                                           (!claim.passed && claim.status === 'pending');
 
                     return (
@@ -995,10 +1078,33 @@ export default function ItemDetail() {
                         )}
 
                         {/* Escalated state info */}
-                        {isEscalated && (
+                        {(isEscalated || isDisputed) && !isAdminResolutionNeeded && (
                           <div className="p-3 bg-orange-950/20 border border-orange-500/20 rounded-xl">
-                            <p className="text-[10px] text-orange-400 font-black uppercase tracking-widest">Escalated to Admin Review</p>
+                            <p className="text-[10px] text-orange-400 font-black uppercase tracking-widest">
+                              {isDisputed ? 'Disputed by Claimant' : 'Escalated to Admin Review'}
+                            </p>
                             <p className="text-[10px] text-slate-500 mt-1">The admin team will make the final decision on this claim.</p>
+                          </div>
+                        )}
+
+                        {/* Admin Resolution Buttons */}
+                        {isAdminResolutionNeeded && (
+                          <div className="flex gap-2 pt-1 flex-wrap mt-3 border-t border-indigo-500/20 pt-3">
+                            <div className="w-full mb-1">
+                              <p className="text-[10px] text-indigo-400 font-black uppercase tracking-widest">Admin Resolution Required</p>
+                            </div>
+                            <button
+                              onClick={() => handleUpdateClaim(claim._id, 'approved', 'Admin override: Claim approved.')}
+                              className="flex-1 min-w-[80px] py-2 bg-emerald-500 text-white text-xs font-black rounded-xl hover:bg-emerald-600 transition-colors"
+                            >
+                              ✓ Override & Approve
+                            </button>
+                            <button
+                              onClick={() => handleUpdateClaim(claim._id, 'rejected', 'Admin override: Rejection upheld.')}
+                              className="flex-1 min-w-[80px] py-2 bg-rose-500 text-white text-xs font-black rounded-xl hover:bg-rose-600 transition-colors"
+                            >
+                              ✗ Uphold Rejection
+                            </button>
                           </div>
                         )}
                       </div>

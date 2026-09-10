@@ -7,7 +7,8 @@ const {
   updateClaimStatus,
   withdrawClaim,
   getFlaggedClaims,
-  getClaimAudit
+  getClaimAudit,
+  disputeClaim
 } = require('../controllers/claimController');
 
 const router = express.Router();
@@ -32,6 +33,7 @@ router.get('/:id/audit',       protect, getClaimAudit);
 
 // ── Core submit + status update ───────────────────────────────────────────
 router.post('/:itemId',        protect, claimLimiter, submitClaim);
+router.post('/:id/dispute',    protect, disputeClaim);
 router.put('/:id/withdraw',    protect, withdrawClaim);
 router.put('/:id',             protect, updateClaimStatus);
 

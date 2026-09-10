@@ -94,7 +94,8 @@ export default function MyReports() {
         const uploadRes = await uploadApi.uploadImage(imageFile);
         setUploadingImage(false);
         if (uploadRes.success) {
-          finalForm.image = uploadRes.url;
+          finalForm.image        = uploadRes.url;
+          finalForm.imagePublicId = uploadRes.publicId || null;
         } else {
           toast.error('Image upload failed. Other changes will still be saved.');
         }

@@ -1,6 +1,8 @@
-const Item = require('../models/Item');
-const User = require('../models/User');
+const Item         = require('../models/Item');
+const Claim        = require('../models/Claim');
+const User         = require('../models/User');
 const Notification = require('../models/Notification');
+const { cloudinary } = require('../config/cloudinary');
 const { runMatchingForItem } = require('../utils/matchItems');
 
 // ── Question quality checker (soft warning, non-blocking) ─────────────────────
@@ -92,13 +94,24 @@ exports.getItems = async (req, res, next) => {
 
     const items = await query;
 
+    // Attach hasApprovedClaim so public browse shows 'Pending Handover'
+    const itemIds = items.map(i => i._id);
+    const approvedClaims = await Claim.find({ item: { $in: itemIds }, status: 'approved' }).select('item');
+    const approvedSet = new Set(approvedClaims.map(c => c.item.toString()));
+
+    const itemsWithStatus = items.map(item => {
+      const obj = item.toObject();
+      obj.hasApprovedClaim = approvedSet.has(item._id.toString());
+      return obj;
+    });
+
     res.status(200).json({
       success: true,
       count: items.length,
       total,
       totalPages: Math.ceil(total / limitNum),
       currentPage: pageNum,
-      data: items,
+      data: itemsWithStatus,
     });
   } catch (err) {
     next(err);
@@ -120,7 +133,11 @@ exports.getItem = async (req, res, next) => {
       throw new Error(`Item not found with id of ${req.params.id}`);
     }
 
-    res.status(200).json({ success: true, data: item });
+    const hasApprovedClaim = await Claim.exists({ item: item._id, status: 'approved' });
+    const itemObj = item.toObject();
+    itemObj.hasApprovedClaim = !!hasApprovedClaim;
+
+    res.status(200).json({ success: true, data: itemObj });
   } catch (err) {
     next(err);
   }
@@ -194,6 +211,14 @@ exports.deleteItem = async (req, res, next) => {
     if (item.postedBy.toString() !== req.user.id && req.user.role !== 'admin') {
       res.status(403);
       throw new Error(`Not authorized to delete this item`);
+    }
+
+    // ── Delete image from Cloudinary if one was uploaded ─────────────────────
+    if (item.imagePublicId) {
+      // Non-blocking — don't let a Cloudinary failure block the deletion
+      cloudinary.uploader.destroy(item.imagePublicId)
+        .then(result => console.log(`[Cloudinary] Deleted image ${item.imagePublicId}:`, result.result))
+        .catch(err  => console.error(`[Cloudinary] Failed to delete image ${item.imagePublicId}:`, err.message));
     }
 
     await item.deleteOne();

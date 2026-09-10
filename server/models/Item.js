@@ -40,6 +40,11 @@ const ItemSchema = new mongoose.Schema({
     type: String,
     default: 'https://images.unsplash.com/photo-1586769852044-692d6e3703a0?auto=format&fit=crop&w=800&q=80'
   },
+  // Cloudinary public_id for the image (used to delete from Cloudinary when item is deleted)
+  imagePublicId: {
+    type: String,
+    default: null
+  },
   postedBy: {
     type: mongoose.Schema.ObjectId,
     ref: 'User',

@@ -3,7 +3,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { Link, useNavigate } from 'react-router-dom';
-import { Mail, Lock, User, UserPlus, ArrowLeft, ShieldCheck } from 'lucide-react';
+import { Mail, Lock, User, UserPlus, ArrowLeft, ShieldCheck, Eye, EyeOff } from 'lucide-react';
 import useAuthStore from '../store/useAuthStore';
 
 const schema = z.object({
@@ -36,6 +36,8 @@ export default function Register() {
   const { register: registerAction, loginWithGoogle, loading, error, setError } = useAuthStore();
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [userEmail, setUserEmail] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   const { register, handleSubmit, formState: { errors } } = useForm({
     resolver: zodResolver(schema),
@@ -195,11 +197,19 @@ export default function Register() {
               <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
               <input
                 {...register('password')}
-                type="password"
+                type={showPassword ? 'text' : 'password'}
                 onChange={() => { if (error) setError(null); }}
-                className="input-field pl-12"
+                className="input-field pl-12 pr-12 w-full"
                 placeholder="••••••••"
               />
+              <button
+                type="button"
+                onClick={() => setShowPassword(v => !v)}
+                className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 hover:text-brand-gold transition-colors z-10 cursor-pointer"
+                tabIndex="-1"
+              >
+                {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+              </button>
             </div>
             {errors.password && <p className="mt-2 text-[10px] text-rose-400 px-1 font-black uppercase tracking-wider">{errors.password.message}</p>}
           </div>
@@ -210,10 +220,18 @@ export default function Register() {
               <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
               <input
                 {...register('confirmPassword')}
-                type="password"
-                className="input-field pl-12"
+                type={showConfirmPassword ? 'text' : 'password'}
+                className="input-field pl-12 pr-12 w-full"
                 placeholder="••••••••"
               />
+              <button
+                type="button"
+                onClick={() => setShowConfirmPassword(v => !v)}
+                className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 hover:text-brand-gold transition-colors z-10 cursor-pointer"
+                tabIndex="-1"
+              >
+                {showConfirmPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+              </button>
             </div>
             {errors.confirmPassword && <p className="mt-2 text-[10px] text-rose-400 px-1 font-black uppercase tracking-wider">{errors.confirmPassword.message}</p>}
           </div>

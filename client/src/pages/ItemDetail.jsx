@@ -7,10 +7,10 @@ import reviewApi from '../api/reviewApi';
 import uploadApi from '../api/uploadApi';
 import itemApi from '../api/itemApi';
 import {
-  MapPin, Calendar, User, ArrowLeft, ShieldCheck, Share2, Info,
+  MapPin, Calendar, User, ArrowLeft, ShieldCheck, Clock, Share2, Info,
   Check, X, Edit, Trash2, Save, Package, Tag, AlertTriangle, Star,
   Hourglass, TrendingUp, Flag, ArrowUpCircle, Upload, ImageIcon,
-  HandHeart, Mail, Phone, Copy, CheckCheck
+  HandHeart, Mail, Phone, Copy, CheckCheck, ChevronDown
 } from 'lucide-react';
 import { toast } from 'sonner';
 import Button from '../components/ui/Button';
@@ -55,6 +55,11 @@ export default function ItemDetail() {
   const [contactInfo, setContactInfo] = useState(null);   // { fullName, email, phone }
   const [copiedEmail, setCopiedEmail] = useState(false);
   const [copiedPhone, setCopiedPhone] = useState(false);
+
+  // Handover modal state (replaces window.prompt)
+  const [showHandoverModal, setShowHandoverModal] = useState(false);
+  const [handoverNotes, setHandoverNotes] = useState('');
+  const [handoverSubmitting, setHandoverSubmitting] = useState(false);
 
   // Resolve item
   useEffect(() => {
@@ -168,6 +173,54 @@ export default function ItemDetail() {
     }
   };
 
+  // Opens modal for RELEASED_BY_SECURITY, otherwise updates directly
+  const handleUpdateCustody = async (newStatus) => {
+    if (newStatus === 'RELEASED_BY_SECURITY') {
+      setHandoverNotes('');
+      setShowHandoverModal(true);
+      return;
+    }
+    // For other statuses (e.g. DEPOSITED_WITH_SECURITY, WITH_FINDER) update directly
+    try {
+      const res = await itemApi.updateCustody(item._id || item.id, { custodyStatus: newStatus });
+      if (res.success) {
+        if (newStatus === 'DEPOSITED_WITH_SECURITY') {
+          toast.success('Item marked as deposited with Campus Security.');
+        } else {
+          toast.success('Custody status updated.');
+        }
+        await fetchItemById(id);
+      }
+    } catch (err) {
+      toast.error(err?.response?.data?.message || 'Failed to update custody status.');
+    }
+  };
+
+  // Called when admin confirms the handover modal
+  const handleConfirmHandover = async () => {
+    if (!handoverNotes.trim()) {
+      toast.error('Please enter the claimant name or verification details.');
+      return;
+    }
+    setHandoverSubmitting(true);
+    try {
+      const res = await itemApi.updateCustody(item._id || item.id, {
+        custodyStatus: 'RELEASED_BY_SECURITY',
+        claimantNotes: handoverNotes.trim(),
+      });
+      if (res.success) {
+        toast.success('Physical handover confirmed! Item status marked as resolved.');
+        setShowHandoverModal(false);
+        setHandoverNotes('');
+        await fetchItemById(id);
+      }
+    } catch (err) {
+      toast.error(err?.response?.data?.message || 'Failed to confirm handover.');
+    } finally {
+      setHandoverSubmitting(false);
+    }
+  };
+
   const handleDisputeClaim = () => {
     if (!myClaim) return;
     const reason = window.prompt("Why are you disputing this rejection? Provide a brief reason:");
@@ -186,6 +239,29 @@ export default function ItemDetail() {
       })
       .catch(err => {
         toast.error(err?.response?.data?.message || "Failed to submit dispute.");
+      });
+  };
+
+  const handleFlagWrongApproval = (claimId) => {
+    const reason = window.prompt("Explain why this claim approval should be put on hold for admin review:");
+    if (reason === null) return;
+    if (reason.trim() === "") {
+      toast.error("Please provide a reason.");
+      return;
+    }
+
+    claimApi.flagWrongApproval(claimId, reason.trim())
+      .then(res => {
+        if (res.success) {
+          toast.success("Approval put on hold. Admins have been alerted to mediate.");
+          setClaims(prev => prev.map(c => c._id === claimId ? { ...c, status: 'disputed', riskRoute: 'ADMIN_REVIEW' } : c));
+          if (myClaim && myClaim._id === claimId) {
+            setMyClaim(res.data);
+          }
+        }
+      })
+      .catch(err => {
+        toast.error(err?.response?.data?.message || "Failed to flag approval.");
       });
   };
 
@@ -399,7 +475,7 @@ export default function ItemDetail() {
                   <div className="relative">
                     <Tag className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={16} />
                     <select
-                      className="input-field pl-10 w-full appearance-none"
+                      className="input-field pl-10 pr-10 w-full appearance-none cursor-pointer"
                       value={editForm.category || ''}
                       onChange={e => setEditForm(f => ({ ...f, category: e.target.value }))}
                     >
@@ -407,6 +483,7 @@ export default function ItemDetail() {
                         <option key={c} value={c} className="bg-slate-900">{c}</option>
                       ))}
                     </select>
+                    <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none" size={16} />
                   </div>
                 </div>
 
@@ -522,6 +599,19 @@ export default function ItemDetail() {
                       🔒 Pending Handover
                     </span>
                   )}
+                  {item.custodyStatus === 'DEPOSITED_WITH_SECURITY' ? (
+                    <span className="px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest border bg-blue-500/15 text-blue-300 border-blue-500/30">
+                      🏛 Campus Security ({item.securityCaseId || 'In Custody'})
+                    </span>
+                  ) : item.custodyStatus === 'RELEASED_BY_SECURITY' ? (
+                    <span className="px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest border bg-emerald-500/15 text-emerald-300 border-emerald-500/30">
+                      🤝 Handed Over & Released
+                    </span>
+                  ) : isFound ? (
+                    <span className="px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest border bg-slate-500/10 text-slate-400 border-slate-500/20">
+                      👤 With Finder
+                    </span>
+                  ) : null}
                   <span className="text-xs font-black text-brand-gold uppercase tracking-[0.25em]">{item.category}</span>
                   {item.riskLevel && (
                     <span className={`px-3 py-1 rounded-xl text-[10px] font-black uppercase tracking-widest border ${
@@ -555,6 +645,78 @@ export default function ItemDetail() {
                 </div>
               </div>
 
+              {/* ── Campus Security Custody Card ── */}
+              {isFound && (
+                <div className={`p-6 rounded-[2rem] border transition-all ${
+                  item.custodyStatus === 'DEPOSITED_WITH_SECURITY'
+                    ? 'bg-blue-950/20 border-blue-500/30'
+                    : item.custodyStatus === 'RELEASED_BY_SECURITY'
+                    ? 'bg-emerald-950/20 border-emerald-500/30'
+                    : 'bg-slate-900/40 border-white/5'
+                }`}>
+                  <div className="flex flex-row flex-wrap items-center justify-between gap-4">
+                    <div className="space-y-1.5 flex-1 min-w-[280px]">
+                      <div className="flex flex-row items-center gap-2 flex-wrap">
+                        <span className="text-xs font-black uppercase tracking-widest text-slate-300">
+                          🏛 Physical Custody:
+                        </span>
+                        <span className={`px-2.5 py-0.5 rounded-lg text-[11px] font-black uppercase tracking-wider border ${
+                          item.custodyStatus === 'DEPOSITED_WITH_SECURITY'
+                            ? 'bg-blue-500/20 text-blue-300 border-blue-500/40'
+                            : item.custodyStatus === 'RELEASED_BY_SECURITY'
+                            ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                            : 'bg-slate-800 text-slate-400 border-white/10'
+                        }`}>
+                          {item.custodyStatus === 'DEPOSITED_WITH_SECURITY'
+                            ? `In Campus Security (Case #${item.securityCaseId || 'N/A'})`
+                            : item.custodyStatus === 'RELEASED_BY_SECURITY'
+                            ? 'Released / Handed Over'
+                            : 'Held by Finder'}
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-400 leading-relaxed">
+                        {item.custodyStatus === 'DEPOSITED_WITH_SECURITY'
+                          ? 'This item is secured at the Campus Security Office. Claimants can collect it in person upon physical verification.'
+                          : item.custodyStatus === 'RELEASED_BY_SECURITY'
+                          ? `This item was verified and handed over to the owner.${item.handoverDetails?.claimantNotes ? ` (Verification: ${item.handoverDetails.claimantNotes})` : ''}`
+                          : 'Finder is currently in possession. High-value items and devices should be deposited at the Security Office.'}
+                      </p>
+                    </div>
+
+                    {/* Admin/Security Officers Custody Management Panel */}
+                    {user?.role === 'admin' && !isResolved && (
+                      <div className="flex flex-row flex-wrap items-center gap-2 shrink-0">
+                        {item.custodyStatus !== 'DEPOSITED_WITH_SECURITY' ? (
+                          <button
+                            onClick={() => handleUpdateCustody('DEPOSITED_WITH_SECURITY')}
+                            className="px-4 py-2.5 bg-blue-500/20 text-blue-300 border border-blue-500/40 rounded-xl text-xs font-black uppercase tracking-wider hover:bg-blue-500 hover:text-white transition-all shadow-sm flex flex-row items-center gap-1.5"
+                          >
+                            Mark Deposited in Security
+                          </button>
+                        ) : (
+                          <>
+                            <button
+                              onClick={() => handleUpdateCustody('WITH_FINDER')}
+                              className="px-3.5 py-2.5 bg-slate-800/80 text-slate-400 border border-white/10 rounded-xl text-xs font-bold uppercase tracking-wider hover:bg-slate-700 hover:text-slate-200 transition-all text-center"
+                              title="Revert status if item was retrieved by finder"
+                            >
+                              Revert to Finder
+                            </button>
+                            <button
+                              onClick={() => handleUpdateCustody('RELEASED_BY_SECURITY')}
+                              className="px-4 py-2.5 bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 rounded-xl text-xs font-black uppercase tracking-wider hover:bg-emerald-500 hover:text-white transition-all shadow-sm flex flex-row items-center gap-1.5"
+                              title="Confirm physical handover after verifying owner in person"
+                            >
+                              ✓ Confirm Handover & Resolve
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
               {/* ── Description card ── */}
               <div className="p-5 sm:p-8 bg-slate-900/40 border border-white/5 rounded-[1.5rem] sm:rounded-[2.5rem] space-y-6">
                 <h3 className="text-base font-black text-white uppercase tracking-widest flex items-center gap-3">
@@ -581,48 +743,66 @@ export default function ItemDetail() {
                       <AlertTriangle size={18} className="text-amber-400" />
                     </div>
                     <div>
-                      <p className="text-amber-400 font-black text-sm uppercase tracking-widest">Awaiting Handover</p>
+                      <p className="text-amber-400 font-black text-sm uppercase tracking-widest">
+                        {claims.some(c => c.status === 'disputed') ? 'Handover Paused — Claim Dispute in Review' : 'Awaiting Handover'}
+                      </p>
                       <p className="text-slate-400 text-xs mt-1 leading-relaxed">
-                        A claim has been verified and contact details exchanged. Once you physically hand over the item, mark it as Resolved to close this report.
+                        {claims.some(c => c.status === 'disputed')
+                          ? 'This approval has been flagged or disputed. Handover is locked while administration reviews the case. Do NOT hand over the item yet.'
+                          : 'A claim has been verified and contact details exchanged. Once you physically hand over the item, mark it as Resolved to close this report.'}
                       </p>
                     </div>
                   </div>
-                  <button
-                    onClick={() => {
-                      toast.warning('Mark as Resolved?', {
-                        description: 'This confirms the item has been physically returned. This action cannot be undone.',
-                        action: {
-                          label: 'Confirm',
-                          onClick: async () => {
-                            try {
-                              await updateItem(id, { status: 'resolved' });
-                              toast.success('Item marked as Resolved. 🎉');
-                            } catch (err) {
-                              toast.error(err.message || 'Failed to update status.');
-                            }
+                  {!claims.some(c => c.status === 'disputed') && (
+                    <button
+                      onClick={() => {
+                        toast.warning('Mark as Resolved?', {
+                          description: 'This confirms the item has been physically returned. This action cannot be undone.',
+                          action: {
+                            label: 'Confirm',
+                            onClick: async () => {
+                              try {
+                                await updateItem(id, { status: 'resolved' });
+                                toast.success('Item marked as Resolved. 🎉');
+                              } catch (err) {
+                                toast.error(err.message || 'Failed to update status.');
+                              }
+                            },
                           },
-                        },
-                        cancel: { label: 'Not yet' },
-                      });
-                    }}
-                    className="w-full py-3 bg-amber-500 text-white font-black text-xs uppercase tracking-[0.2em] rounded-2xl hover:bg-amber-400 transition-colors active:scale-95"
-                  >
-                    ✓ Confirm Handover — Mark as Resolved
-                  </button>
+                          cancel: { label: 'Not yet' },
+                        });
+                      }}
+                      className="w-full py-3 bg-amber-500 text-white font-black text-xs uppercase tracking-[0.2em] rounded-2xl hover:bg-amber-400 transition-colors active:scale-95"
+                    >
+                      ✓ Confirm Handover — Mark as Resolved
+                    </button>
+                  )}
                 </div>
               )}
 
               {/* ── Action buttons ── */}
               <div className="flex flex-wrap gap-4">
                 {!isPoster && isFound && item.hasApprovedClaim && (
-                  <div className="w-full p-4 bg-amber-500/10 border border-amber-500/30 rounded-2xl text-center">
+                  <div className="w-full p-5 bg-amber-500/10 border border-amber-500/30 rounded-2xl text-center space-y-3">
                     <p className="text-amber-400 font-bold text-xs uppercase tracking-wider">
                       🔒 A claim for this item has been verified. Physical handover is currently in progress.
                     </p>
+                    {item.approvedClaimId && !claimPassed && (
+                      <div className="pt-2 border-t border-amber-500/20 flex flex-col sm:flex-row items-center justify-center gap-3">
+                        <span className="text-xs text-slate-400">Believe this item is actually yours?</span>
+                        <button
+                          type="button"
+                          onClick={() => handleFlagWrongApproval(item.approvedClaimId)}
+                          className="px-3 py-1.5 bg-rose-500/20 text-rose-300 border border-rose-500/40 rounded-xl text-xs font-black uppercase tracking-wider hover:bg-rose-500 hover:text-white transition-colors"
+                        >
+                          Flag Wrong Approval
+                        </button>
+                      </div>
+                    )}
                   </div>
                 )}
 
-                {!isPoster && isFound && !item.hasApprovedClaim && (
+                {!isPoster && isFound && !item.hasApprovedClaim && item.category !== 'Devices' && (
                   <Link to={`/submit-claim/${item._id || item.id}`} className="flex-grow">
                     <button className="w-full btn-accent flex items-center justify-center gap-3 py-4 text-sm uppercase tracking-[0.2em] font-black">
                       This is mine — Claim It
@@ -922,58 +1102,84 @@ export default function ItemDetail() {
                 </div>
               ) : (
                 <div className="space-y-4">
-                  {claims.map(claim => {
-                    const isApproved    = claim.status === 'approved';
-                    const isRejected    = claim.status === 'rejected';
-                    const isEscalated   = claim.status === 'escalated';
-                    const isDisputed    = claim.status === 'disputed';
-                    const isAdminResolutionNeeded = user?.role === 'admin' && (isEscalated || isDisputed);
-                    // Finder can act on FINDER_REVIEW under_review claims (or old pending)
-                    const needsAction   = (claim.status === 'under_review' && claim.riskRoute === 'FINDER_REVIEW') ||
-                                          (!claim.passed && claim.status === 'pending');
+                  {(() => {
+                    const activeClaims = claims.filter(c => ['pending', 'under_review', 'disputed', 'escalated'].includes(c.status));
+                    return claims.map(claim => {
+                      const isApproved    = claim.status === 'approved';
+                      const isRejected    = claim.status === 'rejected';
+                      const isEscalated   = claim.status === 'escalated';
+                      const isDisputed    = claim.status === 'disputed';
+                      const isUnderReview = claim.status === 'under_review';
+                      const isAdminResolutionNeeded = user?.role === 'admin' && (isEscalated || isDisputed);
+                      // Finder can act on FINDER_REVIEW under_review claims (or old pending)
+                      const needsAction   = (claim.status === 'under_review' && claim.riskRoute === 'FINDER_REVIEW') ||
+                                            (!claim.passed && claim.status === 'pending');
 
-                    return (
-                      <div
-                        key={claim._id}
-                        className={`p-5 rounded-2xl border space-y-4 ${
-                          isApproved    ? 'bg-emerald-500/5 border-emerald-500/20' :
-                          isUnderReview || isEscalated ? 'bg-amber-500/5 border-amber-500/20' :
-                          isRejected    ? 'bg-rose-500/5 border-rose-500/20' :
-                                          'bg-slate-900/60 border-white/10'
-                        }`}
-                      >
-                        {/* Claimant header */}
-                        <div className="flex justify-between items-start gap-3">
-                          <div className="flex items-center gap-3">
-                            <div className="w-9 h-9 bg-brand-blue/50 rounded-xl flex items-center justify-center text-brand-gold font-black text-sm border border-white/10 shrink-0">
-                              {claim.claimant?.fullName?.charAt(0) || '?'}
+                      const hasCloseCall = ['pending', 'under_review', 'disputed', 'escalated'].includes(claim.status) && activeClaims.some(other =>
+                        other._id !== claim._id &&
+                        other.compositeScore !== undefined &&
+                        claim.compositeScore !== undefined &&
+                        Math.abs(claim.compositeScore - other.compositeScore) <= 10
+                      );
+
+                      return (
+                        <div
+                          key={claim._id}
+                          className={`p-5 rounded-2xl border space-y-4 ${
+                            isApproved    ? 'bg-emerald-500/5 border-emerald-500/20' :
+                            isDisputed    ? 'bg-rose-500/10 border-rose-500/30' :
+                            isUnderReview || isEscalated ? 'bg-amber-500/5 border-amber-500/20' :
+                            isRejected    ? 'bg-rose-500/5 border-rose-500/20' :
+                                            'bg-slate-900/60 border-white/10'
+                          }`}
+                        >
+                          {/* Claimant header */}
+                          <div className="flex justify-between items-start gap-3 flex-wrap">
+                            <div className="flex items-center gap-3">
+                              <div className="w-9 h-9 bg-brand-blue/50 rounded-xl flex items-center justify-center text-brand-gold font-black text-sm border border-white/10 shrink-0">
+                                {claim.claimant?.fullName?.charAt(0) || '?'}
+                              </div>
+                              <div>
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <p className="text-white font-bold text-sm">{claim.claimant?.fullName}</p>
+                                  {claim.compositeScore !== undefined && (
+                                    <span className="px-2 py-0.5 rounded-lg bg-brand-gold/15 text-brand-gold border border-brand-gold/30 text-[10px] font-black">
+                                      {claim.compositeScore}/100 Match
+                                    </span>
+                                  )}
+                                  {hasCloseCall && (
+                                    <span className="flex items-center gap-1 px-2 py-0.5 rounded-lg bg-amber-500/20 text-amber-300 border border-amber-500/40 text-[9px] font-black uppercase tracking-wider" title="Score is within 10 points of another active claim. Verify details carefully.">
+                                      <AlertTriangle size={10} className="text-amber-400" />
+                                      Close Call (≤10 pts)
+                                    </span>
+                                  )}
+                                </div>
+                                <p className="text-xs text-slate-500">{claim.claimant?.email}</p>
+                              </div>
                             </div>
-                            <div>
-                              <p className="text-white font-bold text-sm">{claim.claimant?.fullName}</p>
-                              <p className="text-xs text-slate-500">{claim.claimant?.email}</p>
-                            </div>
-                          </div>
-                          <div className="flex flex-col items-end gap-1.5 shrink-0">
-                            <span className={`px-3 py-1 rounded-xl text-[10px] font-black uppercase tracking-widest border ${
-                              isApproved    ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/20' :
-                              isUnderReview ? 'bg-amber-500/20 text-amber-400 border-amber-500/20' :
-                              isEscalated   ? 'bg-orange-500/20 text-orange-400 border-orange-500/20' :
-                              isRejected    ? 'bg-rose-500/20 text-rose-400 border-rose-500/20' :
-                                              'bg-slate-500/20 text-slate-400 border-slate-500/20'
-                            }`}>
-                              {isApproved    ? '✓ Approved' :
-                               isUnderReview ? '⏳ Review' :
-                               isEscalated   ? '⬆ Escalated' :
-                               isRejected    ? '✗ Rejected' : claim.status}
-                            </span>
-                            {claim.isFlagged && (
-                              <span className="flex items-center gap-1 px-2 py-0.5 rounded-lg bg-red-500/20 text-red-400 border border-red-500/30 text-[9px] font-black uppercase tracking-wider">
-                                <Flag size={8} />
-                                Flagged
+                            <div className="flex flex-col items-end gap-1.5 shrink-0">
+                              <span className={`px-3 py-1 rounded-xl text-[10px] font-black uppercase tracking-widest border ${
+                                isApproved    ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/20' :
+                                isDisputed    ? 'bg-rose-500/20 text-rose-300 border-rose-500/30' :
+                                isUnderReview ? 'bg-amber-500/20 text-amber-400 border-amber-500/20' :
+                                isEscalated   ? 'bg-orange-500/20 text-orange-400 border-orange-500/20' :
+                                isRejected    ? 'bg-rose-500/20 text-rose-400 border-rose-500/20' :
+                                                'bg-slate-500/20 text-slate-400 border-slate-500/20'
+                              }`}>
+                                {isApproved    ? '✓ Approved' :
+                                 isDisputed    ? '⚠ Disputed' :
+                                 isUnderReview ? '⏳ Review' :
+                                 isEscalated   ? '⬆ Escalated' :
+                                 isRejected    ? '✗ Rejected' : claim.status}
                               </span>
-                            )}
+                              {claim.isFlagged && (
+                                <span className="flex items-center gap-1 px-2 py-0.5 rounded-lg bg-red-500/20 text-red-400 border border-red-500/30 text-[9px] font-black uppercase tracking-wider">
+                                  <Flag size={8} />
+                                  Flagged
+                                </span>
+                              )}
+                            </div>
                           </div>
-                        </div>
 
                         {/* Optional context: location hint */}
                         {claim.locationHint && (
@@ -1032,6 +1238,31 @@ export default function ItemDetail() {
                         {/* Route reason */}
                         {claim.routeReason && !isApproved && !isRejected && (
                           <p className="text-[10px] text-slate-500 italic">{claim.routeReason}</p>
+                        )}
+
+                        {/* Supplementary Evidence Photo */}
+                        {claim.supplementaryEvidenceUrl && (
+                          <div className="p-3 bg-white/5 rounded-xl border border-white/5 space-y-2">
+                            <p className="text-[9px] font-black uppercase tracking-widest text-brand-gold flex items-center gap-1.5">
+                              <ImageIcon size={10} />
+                              Supplementary Evidence / Proof
+                            </p>
+                            <a
+                              href={claim.supplementaryEvidenceUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="block relative rounded-lg overflow-hidden border border-white/10 max-h-40 group cursor-zoom-in"
+                            >
+                              <img
+                                src={claim.supplementaryEvidenceUrl}
+                                alt="Claim supplementary evidence"
+                                className="w-full h-36 object-cover group-hover:scale-105 transition-transform duration-300"
+                              />
+                              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-[10px] font-black uppercase tracking-widest text-white">
+                                Click to open full image
+                              </div>
+                            </a>
+                          </div>
                         )}
 
                         {/* Q&A answers */}
@@ -1109,11 +1340,12 @@ export default function ItemDetail() {
                         )}
                       </div>
                     );
-                  })}
-                </div>
-              )}
-            </div>
-          )}
+                  });
+                })()}
+              </div>
+            )}
+          </div>
+        )}
 
           {/* ── Review Prompt (poster after resolved, OR claimant after claim passed) ── */}
           {reviewLoaded && ((isPoster && isResolved) || (!isPoster && claimPassed && (isClaimed || isResolved))) && (
@@ -1206,6 +1438,75 @@ export default function ItemDetail() {
           )}
         </div>
       </div>
+
+      {/* ── Handover Confirmation Modal ── */}
+      {showHandoverModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+          <div className="w-full max-w-md bg-slate-900 border border-white/10 rounded-2xl shadow-2xl overflow-hidden">
+            {/* Header */}
+            <div className="px-6 pt-6 pb-4 border-b border-white/10 flex items-center gap-3">
+              <div className="w-10 h-10 bg-emerald-500/20 rounded-xl flex items-center justify-center shrink-0">
+                <Check size={20} className="text-emerald-400" />
+              </div>
+              <div>
+                <h3 className="text-white font-black text-sm uppercase tracking-widest">Confirm Physical Handover</h3>
+                <p className="text-slate-500 text-xs mt-0.5">Record claimant details before closing this case.</p>
+              </div>
+            </div>
+
+            {/* Body */}
+            <div className="px-6 py-5 space-y-4">
+              <p className="text-slate-400 text-xs leading-relaxed">
+                Enter the claimant&apos;s name, student ID, or any verification details noted during the physical handover.
+                This will be recorded and the item will be marked as{' '}
+                <span className="text-emerald-400 font-bold">Resolved</span>.
+              </p>
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 block">
+                  Claimant Name / Student ID / Notes <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  autoFocus
+                  className="w-full px-4 py-3 bg-slate-800 border border-white/10 rounded-xl text-sm text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/30 transition-all"
+                  placeholder="e.g. John Doe — Matric No. 21/0001"
+                  value={handoverNotes}
+                  onChange={e => setHandoverNotes(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') handleConfirmHandover(); }}
+                />
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="px-6 pb-6 flex items-center gap-3">
+              <button
+                onClick={() => { setShowHandoverModal(false); setHandoverNotes(''); }}
+                disabled={handoverSubmitting}
+                className="flex-1 py-3 bg-slate-800 text-slate-300 border border-white/10 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-slate-700 transition-all disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleConfirmHandover}
+                disabled={handoverSubmitting || !handoverNotes.trim()}
+                className="flex-1 py-3 bg-emerald-500 text-white rounded-xl text-xs font-black uppercase tracking-widest hover:bg-emerald-400 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              >
+                {handoverSubmitting ? (
+                  <>
+                    <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    Confirming…
+                  </>
+                ) : (
+                  <>
+                    <Check size={14} />
+                    Confirm &amp; Resolve
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

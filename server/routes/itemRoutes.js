@@ -7,6 +7,7 @@ const {
   updateItem,
   deleteItem,
   contactItem,
+  updateCustodyStatus,
 } = require('../controllers/itemController');
 
 const router = express.Router();
@@ -32,6 +33,8 @@ router
   .get(getItem)
   .put(protect, updateItem)
   .delete(protect, deleteItem);
+
+router.patch('/:id/custody', protect, updateCustodyStatus);
 
 router.post('/:id/contact', protect, contactLimiter, contactItem);
 

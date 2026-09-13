@@ -3,7 +3,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { Mail, Lock, LogIn, ArrowLeft, RefreshCw, Loader, CheckCircle } from 'lucide-react';
+import { Mail, Lock, LogIn, ArrowLeft, RefreshCw, Loader, CheckCircle, Eye, EyeOff } from 'lucide-react';
 import { toast } from 'sonner';
 import useAuthStore from '../store/useAuthStore';
 
@@ -29,6 +29,7 @@ export default function Login() {
   const { login, loginWithGoogle, resendVerificationEmail, loading, error, setError } = useAuthStore();
   const [showResend, setShowResend]   = useState(false);
   const [resending, setResending]     = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const [lastEmail, setLastEmail]     = useState('');
   const [lastPassword, setLastPassword] = useState('');
 
@@ -163,11 +164,19 @@ export default function Login() {
                 <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
                 <input
                   {...register('password')}
-                  type="password"
+                  type={showPassword ? 'text' : 'password'}
                   onChange={() => { if (error) setError(null); }}
-                  className="input-field pl-12"
+                  className="input-field pl-12 pr-12 w-full"
                   placeholder="••••••••"
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(v => !v)}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 hover:text-brand-gold transition-colors z-10 cursor-pointer"
+                  tabIndex="-1"
+                >
+                  {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                </button>
               </div>
               {errors.password && <p className="mt-2 text-[10px] text-rose-400 px-1 font-black uppercase tracking-wider">{errors.password.message}</p>}
             </div>

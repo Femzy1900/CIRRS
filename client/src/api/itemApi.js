@@ -34,6 +34,11 @@ const itemApi = {
     const response = await axiosInstance.post(`/items/${id}/contact`);
     return response.data;
   },
+
+  updateCustody: async (id, custodyData) => {
+    const response = await axiosInstance.patch(`/items/${id}/custody`, custodyData);
+    return response.data;
+  },
 };
 
 export default itemApi;

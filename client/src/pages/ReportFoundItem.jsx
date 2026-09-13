@@ -6,7 +6,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import {
   Package, MapPin, Calendar, Tag, Image as ImageIcon,
   Send, ArrowLeft, Info, Plus, Upload, Trash2,
-  AlertTriangle, ShieldCheck, Lightbulb
+  AlertTriangle, ShieldCheck, Lightbulb, ChevronDown
 } from 'lucide-react';
 import useItemStore from '../store/useItemStore';
 import uploadApi from '../api/uploadApi';
@@ -16,7 +16,13 @@ import Badge from '../components/ui/Badge';
 import { toast } from 'sonner';
 
 /* ── Per-category config ─────────────────────────────────────── */
+/* ── Per-category config ─────────────────────────────────────── */
 const CATEGORY_CONFIG = {
+  Devices: {
+    level: 'critical',
+    title: '🔒 In-Person Security Verification Only',
+    warning: 'Devices (phones, laptops, tablets, smartwatches, power banks, earbuds, etc.) cannot be verified online due to privacy and safety regulations. You will be prompted to deposit this item at Campus Security.',
+  },
   Money: {
     level: 'critical',
     title: '⚠️ Cash / Money Found',
@@ -50,6 +56,47 @@ const CATEGORY_CONFIG = {
       { q: 'What is the document reference or file number (last 4 digits)?', a: '' },
     ],
   },
+  'Wallets & Purses': {
+    level: 'warning',
+    title: '👛 Wallet / Purse Found',
+    warning: 'Ask about the brand, material, specific types of cards inside, cash range, or personal photos/items inside.',
+    suggestions: [
+      { q: 'What brand and material is the wallet/purse?', a: '' },
+      { q: 'What color is the exterior and interior lining?', a: '' },
+      { q: 'Name a specific card, ID, or photo inside.', a: '' },
+      { q: 'Approximately how much cash was inside (if any)?', a: '' },
+    ],
+  },
+  'Jewelry & Accessories': {
+    level: 'warning',
+    title: '💍 Jewelry & Accessories Found',
+    warning: 'Ask about metal type, stones, engravings, inscriptions, or brand markings.',
+    suggestions: [
+      { q: 'What type of jewelry/accessory is this (e.g. watch, ring, necklace)?', a: '' },
+      { q: 'What color/metal is the item (gold, silver, rose gold)?', a: '' },
+      { q: 'Describe any stone, engraving, or distinctive hallmark.', a: '' },
+    ],
+  },
+  Eyewear: {
+    level: 'info',
+    title: '👓 Eyewear Found',
+    warning: 'Ask about brand, frame shape/color, prescription vs sunglasses, or the case description.',
+    suggestions: [
+      { q: 'What brand or model is the eyewear?', a: '' },
+      { q: 'What color and shape are the frames?', a: '' },
+      { q: 'What does the case look like (color, brand)?', a: '' },
+    ],
+  },
+  Bags: {
+    level: 'info',
+    title: '🎒 Bag Found',
+    warning: 'Ask about the brand, color, and contents. Contents questions are the most reliable identifiers.',
+    suggestions: [
+      { q: 'What is the brand of the bag?', a: '' },
+      { q: 'What color is the bag lining or interior?', a: '' },
+      { q: 'Name one specific item that was inside the bag.', a: '' },
+    ],
+  },
   Keys: {
     level: 'info',
     title: '🔑 Keys Found',
@@ -60,24 +107,54 @@ const CATEGORY_CONFIG = {
       { q: 'What is the key used for (e.g. room, car, locker)?', a: '' },
     ],
   },
-  Bags: {
+  'Clothing & Footwear': {
     level: 'info',
-    title: '🎒 Bag Found',
-    warning: 'Ask about the brand, color, and contents. Contents questions are the most reliable identifiers.',
+    title: '👕 Clothing & Footwear Found',
+    warning: 'Ask about brand, size, color, or items left in pockets.',
     suggestions: [
-      { q: 'What is the brand of the bag?', a: '' },
-      { q: 'What color is the bag lining or interior?', a: '' },
-      { q: 'Name one item that was inside the bag.', a: '' },
+      { q: 'What brand and size is the clothing/shoe?', a: '' },
+      { q: 'What is the exact color and pattern?', a: '' },
+      { q: 'Describe any item left in a pocket or distinctive marking.', a: '' },
     ],
   },
-  Electronics: {
+  'Water Bottles & Flasks': {
     level: 'info',
-    title: '📱 Electronics Found',
-    warning: 'Serial numbers, IMEI, or physical damage descriptions make the best verification questions.',
+    title: '🧴 Water Bottle / Flask Found',
+    warning: 'Ask about brand, color, stickers, dents, or volume capacity.',
     suggestions: [
-      { q: 'What brand and model is the device?', a: '' },
-      { q: 'What color is the phone case or device?', a: '' },
-      { q: 'Describe any physical damage or sticker on the device.', a: '' },
+      { q: 'What brand is the bottle/flask?', a: '' },
+      { q: 'What color is the bottle and cap?', a: '' },
+      { q: 'Describe any stickers, dents, or unique marks on it.', a: '' },
+    ],
+  },
+  Umbrellas: {
+    level: 'info',
+    title: '☂️ Umbrella Found',
+    warning: 'Ask about color, pattern, handle material, or brand.',
+    suggestions: [
+      { q: 'What color or pattern is the umbrella canopy?', a: '' },
+      { q: 'Is it a foldable/compact umbrella or long stick umbrella?', a: '' },
+      { q: 'Describe the handle (color, material, shape).', a: '' },
+    ],
+  },
+  'Books & Stationery': {
+    level: 'info',
+    title: '📚 Books & Stationery Found',
+    warning: 'Ask about book title, author, course code, notes written inside, or pencil case contents.',
+    suggestions: [
+      { q: 'What is the book title or subject/course code?', a: '' },
+      { q: 'Is there a name or matric number written inside?', a: '' },
+      { q: 'What color is the cover or binder?', a: '' },
+    ],
+  },
+  'Sports Equipment': {
+    level: 'info',
+    title: '⚽ Sports Equipment Found',
+    warning: 'Ask about brand, sport, color, size, or identifying wear.',
+    suggestions: [
+      { q: 'What brand and type of sports equipment is it?', a: '' },
+      { q: 'What is the primary color scheme?', a: '' },
+      { q: 'Describe any specific scratches, initials, or identifiers.', a: '' },
     ],
   },
   'Personal Effects': {
@@ -110,7 +187,24 @@ const schema = z.object({
   description: z.string().min(10, 'Description must be at least 10 characters'),
 });
 
-const CATEGORIES = ['Electronics', 'Documents', 'Personal Effects', 'Keys', 'Bags', 'Money', 'Cards', 'Other'];
+const CATEGORIES = [
+  'Devices',
+  'Money',
+  'Cards',
+  'Documents',
+  'Keys',
+  'Bags',
+  'Wallets & Purses',
+  'Jewelry & Accessories',
+  'Eyewear',
+  'Clothing & Footwear',
+  'Water Bottles & Flasks',
+  'Umbrellas',
+  'Books & Stationery',
+  'Sports Equipment',
+  'Personal Effects',
+  'Other'
+];
 
 export default function ReportFoundItem() {
   const navigate = useNavigate();
@@ -120,10 +214,11 @@ export default function ReportFoundItem() {
   const [imageFile, setImageFile] = useState(null);
 
   const [questions, setQuestions] = useState([
-    { question: '', answer: '' },
-    { question: '', answer: '' },
-    { question: '', answer: '' },
+    { question: '', answer: '', weight: 1 },
+    { question: '', answer: '', weight: 1 },
+    { question: '', answer: '', weight: 1 },
   ]);
+  const [securityCaseId, setSecurityCaseId] = useState('');
 
   const { register, handleSubmit, watch, formState: { errors } } = useForm({
     resolver: zodResolver(schema),
@@ -137,14 +232,14 @@ export default function ReportFoundItem() {
   useEffect(() => {
     if (selectedCategory && selectedCategory !== prevCategoryRef.current && categoryConfig?.suggestions) {
       setQuestions(
-        categoryConfig.suggestions.map(s => ({ question: s.q, answer: s.a }))
+        categoryConfig.suggestions.map(s => ({ question: s.q, answer: s.a, weight: 1 }))
       );
       prevCategoryRef.current = selectedCategory;
     }
   }, [selectedCategory, categoryConfig]);
 
   const addQuestion = () => {
-    if (questions.length < 5) setQuestions([...questions, { question: '', answer: '' }]);
+    if (questions.length < 5) setQuestions([...questions, { question: '', answer: '', weight: 1 }]);
   };
 
   const removeQuestion = (index) => {
@@ -158,10 +253,13 @@ export default function ReportFoundItem() {
   };
 
   const onSubmit = async (data) => {
-    const validQuestions = questions.filter(q => q.question.trim() && q.answer.trim());
-    if (validQuestions.length < 3) {
-      toast.error('You must fill in at least 3 complete verification questions (question + answer).');
-      return;
+    let validQuestions = [];
+    if (selectedCategory !== 'Devices') {
+      validQuestions = questions.filter(q => q.question.trim() && q.answer.trim());
+      if (validQuestions.length < 3) {
+        toast.error('You must fill in at least 3 complete verification questions (question + answer).');
+        return;
+      }
     }
 
     try {
@@ -183,6 +281,8 @@ export default function ReportFoundItem() {
         image: imageUrl,
         imagePublicId,
         verificationQuestions: validQuestions,
+        securityCaseId: securityCaseId.trim() || undefined,
+        custodyStatus: securityCaseId.trim() ? 'DEPOSITED_WITH_SECURITY' : 'WITH_FINDER',
       });
 
       if (res?.questionWarnings?.length) {
@@ -268,12 +368,13 @@ export default function ReportFoundItem() {
                   <label className="block text-[10px] font-black text-brand-gold uppercase tracking-[0.2em] px-1">Category</label>
                   <div className="relative group">
                     <Tag className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 group-focus-within:text-brand-gold transition-colors" size={18} />
-                    <select {...register('category')} className="input-field pl-12 appearance-none cursor-pointer">
+                    <select {...register('category')} className="input-field pl-12 pr-10 appearance-none cursor-pointer">
                       <option value="" className="bg-slate-900">Select category</option>
                       {CATEGORIES.map(c => (
                         <option key={c} value={c} className="bg-slate-900">{c}</option>
                       ))}
                     </select>
+                    <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none" size={16} />
                   </div>
                   {errors.category && <p className="text-[10px] text-rose-500 font-black uppercase tracking-widest px-1">{errors.category.message}</p>}
                 </div>
@@ -320,107 +421,179 @@ export default function ReportFoundItem() {
               </div>
             )}
 
-            {/* ── Verification Questions Builder ── */}
-            <div className="space-y-8 pt-8 border-t border-white/5">
-              <div className="flex items-center justify-between">
-                <h2 className="text-xl font-black text-white uppercase tracking-widest flex items-center gap-3">
-                  <span className="w-8 h-px bg-brand-gold/30"></span>
-                  Ownership Questions
-                </h2>
-                <Badge variant={selectedCategory === 'Money' || selectedCategory === 'Cards' ? 'danger' : 'warning'}>
-                  {selectedCategory === 'Money' || selectedCategory === 'Cards' ? 'All must pass' : '2 of 3 must pass'}
-                </Badge>
-              </div>
-
-              <div className="p-6 bg-brand-blue/30 rounded-[2rem] border border-white/5 flex gap-4">
-                <ShieldCheck size={20} className="text-brand-gold shrink-0 mt-0.5" />
-                <div className="space-y-1">
-                  <p className="text-xs font-black text-white uppercase tracking-widest">How this works</p>
-                  <p className="text-xs text-slate-400 leading-relaxed">
-                    You set the questions and answers. The claimer only sees the questions — they type their answers.
-                    The system auto-grades using fuzzy matching (ignores casing, punctuation, word order, and small typos).
-                    {selectedCategory === 'Money' || selectedCategory === 'Cards'
-                      ? ' For this category, the claimer must get ALL questions correct.'
-                      : ' The claimer must get at least 2 correct to unlock your contact details.'}
-                  </p>
+            {/* ── Physical Verification (Devices) vs Questions Builder ── */}
+            {selectedCategory === 'Devices' ? (
+              <div className="space-y-6 pt-8 border-t border-white/5 animate-fade-in">
+                <div className="flex items-center justify-between">
+                  <h2 className="text-xl font-black text-white uppercase tracking-widest flex items-center gap-3">
+                    <span className="w-8 h-px bg-brand-gold/30"></span>
+                    Physical Verification Mode
+                  </h2>
+                  <Badge variant="warning">In-Person Only</Badge>
                 </div>
-              </div>
 
-              {categoryConfig?.suggestions && (
-                <div className="p-5 bg-emerald-500/5 rounded-[1.5rem] border border-emerald-500/20 flex gap-3">
-                  <Lightbulb size={16} className="text-emerald-400 shrink-0 mt-0.5" />
-                  <p className="text-xs text-emerald-300/80">
-                    We pre-filled suggested questions for this category. Edit them to match this specific item.
-                  </p>
-                </div>
-              )}
-
-              <div className="space-y-6">
-                {questions.map((q, index) => (
-                  <div key={index} className="glass-card p-6 rounded-[2rem] border-white/5 space-y-5 relative animate-fade-in">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <span className="w-7 h-7 bg-brand-gold/10 text-brand-gold rounded-lg flex items-center justify-center text-[10px] font-black border border-brand-gold/20">
-                          Q{index + 1}
-                        </span>
-                        <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">
-                          {index < 3 ? 'Required' : 'Optional'}
-                        </span>
-                      </div>
-                      {questions.length > 3 && (
-                        <button type="button" onClick={() => removeQuestion(index)} className="p-2 text-rose-500 hover:text-rose-400 hover:bg-rose-500/10 rounded-xl transition-all">
-                          <Trash2 size={14} />
-                        </button>
-                      )}
-                    </div>
-
-                    <div className="space-y-4">
-                      <div>
-                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2 block px-1">
-                          Question <span className="text-rose-500">*</span>
-                        </label>
-                        <input
-                          type="text"
-                          autoComplete="off"
-                          className="input-field w-full"
-                          placeholder="e.g. What color is the inner lining of the bag?"
-                          value={q.question}
-                          onChange={(e) => handleQuestionChange(index, 'question', e.target.value)}
-                        />
-                      </div>
-
-                      <div>
-                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2 block px-1">
-                          Correct Answer <span className="text-rose-500">*</span>
-                          <span className="text-slate-600 normal-case ml-2 font-medium">(hidden from claimer)</span>
-                        </label>
-                        <input
-                          type="text"
-                          autoComplete="off"
-                          className="input-field w-full"
-                          placeholder="Enter the correct answer"
-                          value={q.answer}
-                          onChange={(e) => handleQuestionChange(index, 'answer', e.target.value)}
-                        />
-                      </div>
+                <div className="p-6 bg-amber-950/20 border border-amber-500/30 rounded-[2rem] space-y-3">
+                  <div className="flex items-start gap-4">
+                    <ShieldCheck size={24} className="text-amber-400 shrink-0 mt-0.5" />
+                    <div className="space-y-1.5">
+                      <p className="text-xs font-black text-amber-200 uppercase tracking-widest">
+                        Security Custody Required for Devices
+                      </p>
+                      <p className="text-xs text-amber-300/80 leading-relaxed">
+                        Devices (phones, laptops, smartwatches, etc.) contain sensitive personal data and cannot be claimed online through questions.
+                        Please deposit this device at the <strong>Campus Security Office</strong>. Ownership will be verified in person by security officers when the claimant unlocks the device or provides proof of purchase.
+                      </p>
                     </div>
                   </div>
-                ))}
+                </div>
 
-                {questions.length < 5 && (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    icon={Plus}
-                    onClick={addQuestion}
-                    className="w-full border-dashed border-white/10 hover:border-brand-gold/30"
-                  >
-                    Add Another Question ({questions.length}/5)
-                  </Button>
-                )}
+                <div className="glass-card p-6 rounded-[2rem] border-white/5 space-y-4">
+                  <div>
+                    <label className="text-[10px] font-black uppercase tracking-widest text-brand-gold mb-2 block px-1">
+                      Security Case ID <span className="text-slate-500 normal-case font-medium">(Optional / If already deposited)</span>
+                    </label>
+                    <input
+                      type="text"
+                      className="input-field w-full"
+                      placeholder="e.g. SEC-123456 (Issued by Campus Security)"
+                      value={securityCaseId}
+                      onChange={(e) => setSecurityCaseId(e.target.value)}
+                    />
+                    <p className="text-[10px] text-slate-500 px-1 mt-2 leading-relaxed">
+                      If you have already handed this device over to Campus Security, enter the Case ID or receipt number given to you. If not yet deposited, you can leave this blank and update it later.
+                    </p>
+                  </div>
+                </div>
               </div>
-            </div>
+            ) : (
+              <div className="space-y-8 pt-8 border-t border-white/5">
+                <div className="flex items-center justify-between">
+                  <h2 className="text-xl font-black text-white uppercase tracking-widest flex items-center gap-3">
+                    <span className="w-8 h-px bg-brand-gold/30"></span>
+                    Ownership Questions
+                  </h2>
+                  <Badge variant={selectedCategory === 'Money' || selectedCategory === 'Cards' ? 'danger' : 'warning'}>
+                    {selectedCategory === 'Money' || selectedCategory === 'Cards' ? 'All must pass' : '2 of 3 must pass'}
+                  </Badge>
+                </div>
+
+                <div className="p-6 bg-brand-blue/30 rounded-[2rem] border border-white/5 flex gap-4">
+                  <ShieldCheck size={20} className="text-brand-gold shrink-0 mt-0.5" />
+                  <div className="space-y-1">
+                    <p className="text-xs font-black text-white uppercase tracking-widest">How this works</p>
+                    <p className="text-xs text-slate-400 leading-relaxed">
+                      You set the questions and answers. The claimer only sees the questions — they type their answers.
+                      The system auto-grades using fuzzy matching (ignores casing, punctuation, word order, and small typos).
+                      {selectedCategory === 'Money' || selectedCategory === 'Cards'
+                        ? ' For this category, the claimer must get ALL questions correct.'
+                        : ' The claimer must get at least 2 correct to unlock your contact details.'}
+                    </p>
+                  </div>
+                </div>
+
+                {categoryConfig?.suggestions && (
+                  <div className="p-5 bg-emerald-500/5 rounded-[1.5rem] border border-emerald-500/20 flex gap-3">
+                    <Lightbulb size={16} className="text-emerald-400 shrink-0 mt-0.5" />
+                    <p className="text-xs text-emerald-300/80">
+                      We pre-filled suggested questions for this category. Edit them to match this specific item.
+                    </p>
+                  </div>
+                )}
+
+                <div className="space-y-6">
+                  {questions.map((q, index) => (
+                    <div key={index} className="glass-card p-6 rounded-[2rem] border-white/5 space-y-5 relative animate-fade-in">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <span className="w-7 h-7 bg-brand-gold/10 text-brand-gold rounded-lg flex items-center justify-center text-[10px] font-black border border-brand-gold/20">
+                            Q{index + 1}
+                          </span>
+                          <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">
+                            {index < 3 ? 'Required' : 'Optional'}
+                          </span>
+                        </div>
+                        {questions.length > 3 && (
+                          <button type="button" onClick={() => removeQuestion(index)} className="p-2 text-rose-500 hover:text-rose-400 hover:bg-rose-500/10 rounded-xl transition-all">
+                            <Trash2 size={14} />
+                          </button>
+                        )}
+                      </div>
+
+                      <div className="space-y-4">
+                        <div>
+                          <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2 block px-1">
+                            Question <span className="text-rose-500">*</span>
+                          </label>
+                          <input
+                            type="text"
+                            autoComplete="off"
+                            className="input-field w-full"
+                            placeholder="e.g. What color is the inner lining of the bag?"
+                            value={q.question}
+                            onChange={(e) => handleQuestionChange(index, 'question', e.target.value)}
+                          />
+                        </div>
+
+                        <div>
+                          <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2 block px-1">
+                            Correct Answer <span className="text-rose-500">*</span>
+                            <span className="text-slate-600 normal-case ml-2 font-medium">(hidden from claimer)</span>
+                          </label>
+                          <input
+                            type="text"
+                            autoComplete="off"
+                            className="input-field w-full"
+                            placeholder="Enter the correct answer"
+                            value={q.answer}
+                            onChange={(e) => handleQuestionChange(index, 'answer', e.target.value)}
+                          />
+                        </div>
+
+                        <div>
+                          <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2 block px-1">
+                            Question Weight
+                            <span className="text-slate-600 normal-case ml-2 font-medium">— importance in score</span>
+                          </label>
+                          <div className="flex gap-2">
+                            {[
+                              { v: 1, label: '1 — Basic' },
+                              { v: 2, label: '2 — Specific' },
+                              { v: 3, label: '3 — Unique/Serial' }
+                            ].map(opt => (
+                              <button
+                                key={opt.v}
+                                type="button"
+                                onClick={() => handleQuestionChange(index, 'weight', opt.v)}
+                                className={`flex-1 py-2 px-3 rounded-xl text-[10px] font-black uppercase tracking-widest border transition-all ${
+                                  (q.weight || 1) === opt.v
+                                    ? 'bg-brand-gold/20 border-brand-gold/50 text-brand-gold shadow-[0_0_15px_rgba(234,179,8,0.1)]'
+                                    : 'bg-white/5 border-white/10 text-slate-500 hover:border-brand-gold/30 hover:text-slate-300'
+                                }`}
+                              >
+                                {opt.label}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+
+                  {questions.length < 5 && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      icon={Plus}
+                      onClick={addQuestion}
+                      className="w-full border-dashed border-white/10 hover:border-brand-gold/30"
+                    >
+                      Add Another Question ({questions.length}/5)
+                    </Button>
+                  )}
+                </div>
+              </div>
+            )}
 
             <Button loading={loading} type="submit" variant="accent" size="xl" className="w-full" icon={Send}>
               Submit Found Report

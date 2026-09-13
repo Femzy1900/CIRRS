@@ -9,18 +9,31 @@
 
 const AUTO_APPROVE_THRESHOLD = 75; // composite score needed for auto-approval on LOW risk items
 
+// Physical-only items must be verified in-person at campus security office
+const PHYSICAL_ONLY_CATEGORIES = ['Devices'];
+
 // These categories always require manual finder approval — never auto-approved
 const MONEY_CATEGORIES = ['Money', 'Cards'];
 
 /**
- * @param {Object}   item           - Mongoose Item doc (needs .category, .riskLevel)
- * @param {number}   compositeScore - 0–100 weighted composite score
- * @param {string[]} fraudFlags     - Array of fraud flag strings (empty = clean)
- * @returns {{ route: 'AUTO'|'FINDER_REVIEW'|'ADMIN_REVIEW', status: string, reason: string }}
+ * @param {Object}   item                 - Mongoose Item doc (needs .category, .riskLevel)
+ * @param {number}   compositeScore       - 0–100 weighted composite score
+ * @param {string[]} fraudFlags           - Array of fraud flag strings (empty = clean)
+ * @param {number}   competingClaimsCount - Number of active competing claims on this item
+ * @returns {{ route: 'AUTO'|'FINDER_REVIEW'|'ADMIN_REVIEW'|'PHYSICAL_VERIFICATION', status: string, reason: string }}
  */
-function routeClaim(item, compositeScore, fraudFlags = []) {
+function routeClaim(item, compositeScore, fraudFlags = [], competingClaimsCount = 0) {
   const { category, riskLevel } = item;
   const isFlagged = fraudFlags.length > 0;
+
+  // ── Physical-only verification: short-circuit immediately ───────────────────
+  if (PHYSICAL_ONLY_CATEGORIES.includes(category)) {
+    return {
+      route:  'PHYSICAL_VERIFICATION',
+      status: 'awaiting_physical_verification',
+      reason: 'Physical-only device verification required at the Campus Security Office.'
+    };
+  }
 
   // ── Money / Cards: hardcoded FINDER_REVIEW, never auto-approved ─────────────
   if (MONEY_CATEGORIES.includes(category)) {
@@ -55,6 +68,15 @@ function routeClaim(item, compositeScore, fraudFlags = []) {
       route:  'FINDER_REVIEW',
       status: 'under_review',
       reason: 'Medium-risk item. Finder must manually approve or reject this claim.'
+    };
+  }
+
+  // ── Competing active claims in flight → manual review required (never auto-approve) ──
+  if (competingClaimsCount > 0) {
+    return {
+      route:  'FINDER_REVIEW',
+      status: 'under_review',
+      reason: 'Another claim is already active on this item — manual review required.'
     };
   }
 

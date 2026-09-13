@@ -6,8 +6,14 @@ const axiosInstance = axios.create({
   headers: { 'Content-Type': 'application/json' },
 });
 
-// Attach a fresh Firebase ID token to every outgoing request
+// Attach a fresh Firebase ID token to every outgoing request.
+// Waits for Firebase Auth to finish initializing before checking currentUser,
+// preventing the race condition where currentUser is null on page refresh.
 axiosInstance.interceptors.request.use(async (config) => {
+  // authStateReady() resolves once Firebase has restored auth state from storage
+  if (typeof auth.authStateReady === 'function') {
+    await auth.authStateReady();
+  }
   const user = auth.currentUser;
   if (user) {
     const token = await user.getIdToken(); // auto-refreshes when expired
@@ -16,12 +22,20 @@ axiosInstance.interceptors.request.use(async (config) => {
   return config;
 });
 
-// Handle 401 globally
+// Handle 401 globally — only log out if Firebase truly has no active user.
+// This prevents spurious logouts caused by race conditions during initialization.
 axiosInstance.interceptors.response.use(
   (response) => response,
-  (error) => {
+  async (error) => {
     if (error.response?.status === 401) {
-      window.dispatchEvent(new Event('auth:unauthorized'));
+      // Wait for Firebase auth to settle before deciding to log out
+      if (typeof auth.authStateReady === 'function') {
+        await auth.authStateReady();
+      }
+      // Only fire logout event if Firebase confirms no signed-in user
+      if (!auth.currentUser) {
+        window.dispatchEvent(new Event('auth:unauthorized'));
+      }
     }
     return Promise.reject(error);
   }

@@ -118,8 +118,8 @@ Core flows:
 
 3.3  Risk Level (auto-assigned on save/edit)
 ---------------------------------------------
-  HIGH   → Money, Cards
-  MEDIUM → Electronics, Documents, Bags
+  HIGH   → Money, Cards, Electronics, Documents
+  MEDIUM → Bags
   LOW    → Personal Effects, Keys, Other
 
   The riskLevel field is never set manually. It is automatically computed from
@@ -333,19 +333,24 @@ the found item belongs to them.
      → ADMIN_REVIEW immediately.
         Reason: Suspicious behaviour requires human oversight.
 
-  3. riskLevel = HIGH (Electronics, Documents, Bags)?
+  3. riskLevel = HIGH (Electronics, Documents)?
      → ADMIN_REVIEW.
         Reason: High-value items need admin verification before contact release.
+        (Note: Money/Cards are caught in step 1 and go to FINDER_REVIEW).
 
-  4. riskLevel = MEDIUM (Electronics, Documents, Bags)?
+  4. riskLevel = MEDIUM (Bags)?
      → FINDER_REVIEW.
         Reason: Finder knows the item best — their approval required.
 
-  5. riskLevel = LOW AND compositeScore ≥ 75?
-     → AUTO (auto-approved immediately).
-        Reason: Low-risk, high-confidence claim. Contact released instantly.
+  5. Competing active claims on this item > 0?
+     → FINDER_REVIEW.
+        Reason: Multiple claimants in flight — manual review required, never auto-approve.
 
-  6. riskLevel = LOW AND compositeScore < 75?
+  6. riskLevel = LOW AND compositeScore ≥ 75?
+     → AUTO (auto-approved immediately).
+        Reason: Low-risk, high-confidence claim with no competing claims. Contact released instantly.
+
+  7. riskLevel = LOW AND compositeScore < 75?
      → FINDER_REVIEW.
         Reason: Score not high enough for auto-approval even on low-risk items.
 

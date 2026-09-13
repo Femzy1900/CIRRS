@@ -17,7 +17,8 @@ import {
   Tag,
   Upload,
   ImageIcon,
-  Loader
+  Loader,
+  ChevronDown
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import Badge from '../components/ui/Badge';
@@ -210,7 +211,7 @@ export default function MyReports() {
                         <div className="relative group/input">
                           <Tag className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={16} />
                           <select
-                            className="input-field pl-10 w-full appearance-none cursor-pointer"
+                            className="input-field pl-10 pr-10 w-full appearance-none cursor-pointer"
                             value={editForm.category || ''}
                             onChange={e => setEditForm(f => ({ ...f, category: e.target.value }))}
                           >
@@ -218,6 +219,7 @@ export default function MyReports() {
                               <option key={c} value={c} className="bg-slate-900">{c}</option>
                             ))}
                           </select>
+                          <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none" size={16} />
                         </div>
                       </div>
 

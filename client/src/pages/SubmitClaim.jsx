@@ -6,13 +6,14 @@ import {
   ShieldCheck, ArrowLeft, Info, Send, Lock,
   CheckCircle, XCircle, Phone, Mail, User,
   AlertTriangle, Unlock, HelpCircle, Clock, MapPin, Hourglass,
-  RotateCcw, Ban
+  RotateCcw, Ban, Image as ImageIcon, Upload, Trash2
 } from 'lucide-react';
 import { toast } from 'sonner';
 import Button from '../components/ui/Button';
 import Badge from '../components/ui/Badge';
 import claimApi from '../api/claimApi';
 import complaintApi from '../api/complaintApi';
+import uploadApi from '../api/uploadApi';
 import axiosInstance from '../api/axiosInstance';
 
 const STRICT_CATEGORIES = ['Money', 'Cards'];
@@ -33,6 +34,8 @@ export default function SubmitClaim() {
   const [answers, setAnswers] = useState({});
   const [locationHint, setLocationHint] = useState('');
   const [reportedTime, setReportedTime] = useState('');
+  const [evidenceFile, setEvidenceFile] = useState(null);
+  const [evidencePreview, setEvidencePreview] = useState(null);
   const [result, setResult] = useState(null);
   const [existingClaim, setExistingClaim] = useState(null);
   const [checkingClaim, setCheckingClaim] = useState(true);
@@ -45,6 +48,8 @@ export default function SubmitClaim() {
 
   // Phone prompt (shown if user has no phone set)
   const [phoneInput, setPhoneInput] = useState('');
+  // Physical verification note for device items
+  const [physicalVerificationNote, setPhysicalVerificationNote] = useState('');
 
   // Complaint / appeal to admin
   const [showComplaintForm, setShowComplaintForm] = useState(false);
@@ -112,8 +117,10 @@ export default function SubmitClaim() {
   const threshold     = isStrict ? questions.length : Math.max(2, Math.ceil((2 / 3) * questions.length));
   const riskLevel     = item?.riskLevel || 'LOW';
   const requiresManual = isStrict || riskLevel === 'MEDIUM' || riskLevel === 'HIGH';
+  // Devices are physical‑only items; skip question flow
+  const isPhysicalOnly = item?.category === 'Devices';
 
-  const allAnswered = questions.every((_, i) => (answers[i] || '').trim().length > 0);
+  const allAnswered = isPhysicalOnly || questions.every((_, i) => (answers[i] || '').trim().length > 0);
 
   const handleAnswerChange = (index, value) => {
     setAnswers(prev => ({ ...prev, [index]: value }));
@@ -139,6 +146,21 @@ export default function SubmitClaim() {
     }
   };
 
+  const handleEvidenceChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      setEvidenceFile(file);
+      const reader = new FileReader();
+      reader.onloadend = () => setEvidencePreview(reader.result);
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const removeEvidence = () => {
+    setEvidenceFile(null);
+    setEvidencePreview(null);
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!allAnswered) {
@@ -154,6 +176,14 @@ export default function SubmitClaim() {
           .catch(() => {}); // non-blocking — don't fail the claim submission if this fails
       }
 
+      let supplementaryEvidenceUrl = null;
+      if (evidenceFile) {
+        const uploadRes = await uploadApi.uploadImage(evidenceFile);
+        if (uploadRes?.success) {
+          supplementaryEvidenceUrl = uploadRes.url;
+        }
+      }
+
       const formattedAnswers = questions.map((q, i) => ({
         question:       q.question,
         providedAnswer: answers[i] || ''
@@ -163,7 +193,9 @@ export default function SubmitClaim() {
         item._id || item.id,
         formattedAnswers,
         locationHint,
-        reportedTime || null
+        reportedTime || null,
+        supplementaryEvidenceUrl,
+        physicalVerificationNote
       );
 
       const { score, totalQuestions, compositeScore, passed, status, route, reason, finderContact } = res.data;
@@ -628,7 +660,7 @@ export default function SubmitClaim() {
                 </Button>
               </div>
             )
-          ) : !pendingClaim && !attemptsExhausted ? (
+          ) : (!isPhysicalOnly && !pendingClaim && !attemptsExhausted) ? (
             /* ── FORM ── */
             <form className="glass-card p-5 sm:p-10 rounded-[2rem] sm:rounded-[3rem] border-white/5 space-y-8 sm:space-y-10" onSubmit={handleSubmit}>
 
@@ -646,11 +678,7 @@ export default function SubmitClaim() {
               )}
 
               <div className="space-y-6">
-                <p className="text-xs text-slate-400 leading-relaxed">
-                  Answer the {questions.length} question{questions.length !== 1 ? 's' : ''} below.
-                  You need at least <strong className="text-white">{threshold}</strong> correct to unlock the finder's contact.
-                  Answers are case-insensitive and minor typos are forgiven.
-                </p>
+
 
                 {questions.map((q, index) => (
                   <div key={index} className="space-y-3 p-6 glass-card rounded-[2rem] border-white/5">
@@ -707,6 +735,48 @@ export default function SubmitClaim() {
                       value={reportedTime}
                       onChange={e => setReportedTime(e.target.value)}
                     />
+                  </div>
+
+                  {/* Supplementary Evidence Photo */}
+                  <div className="space-y-3 pt-2 border-t border-white/5">
+                    <label className="text-[10px] font-black uppercase tracking-widest text-brand-gold/70 flex items-center gap-2">
+                      <ImageIcon size={12} />
+                      Supplementary Evidence Photo (Optional)
+                    </label>
+                    <p className="text-[11px] text-slate-400 leading-relaxed">
+                      Upload receipt, purchase confirmation, warranty card, or a photo of you with the item to strengthen manual review.
+                    </p>
+
+                    {evidencePreview ? (
+                      <div className="relative rounded-2xl overflow-hidden border border-white/10 max-h-48 group">
+                        <img src={evidencePreview} alt="Evidence preview" className="w-full h-48 object-cover" />
+                        <button
+                          type="button"
+                          onClick={removeEvidence}
+                          className="absolute top-3 right-3 p-2 bg-rose-500/80 hover:bg-rose-500 text-white rounded-xl transition-all shadow-lg"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    ) : (
+                      <div
+                        onClick={() => document.getElementById('evidence-upload').click()}
+                        className="py-6 px-4 rounded-2xl border-2 border-dashed border-white/10 hover:border-brand-gold/40 bg-white/5 flex flex-col items-center justify-center cursor-pointer transition-all group"
+                      >
+                        <Upload size={20} className="text-slate-500 group-hover:text-brand-gold mb-2 transition-colors" />
+                        <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 group-hover:text-white">
+                          Click to upload proof photo / receipt
+                        </span>
+                        <span className="text-[8px] font-bold text-slate-500 mt-1">JPG, PNG up to 5MB</span>
+                        <input
+                          id="evidence-upload"
+                          type="file"
+                          className="hidden"
+                          accept="image/*"
+                          onChange={handleEvidenceChange}
+                        />
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>

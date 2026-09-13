@@ -33,12 +33,16 @@ async function approveAndShare({ claim, item, finder, claimantId, actorId, actor
     phone:    finder.phone || null
   };
 
+  const isWithSecurity = item.custodyStatus === 'DEPOSITED_WITH_SECURITY';
+
   // Notify finder
   await Notification.create({
     user:    finder._id,
     type:    'claim_approved',
     title:   'Your item has been claimed!',
-    message: `A claim for "${item.title}" was approved. Contact details have been exchanged — please confirm the handover and mark as Resolved.`,
+    message: isWithSecurity
+      ? `A claim for "${item.title}" was approved. The claimant has been instructed to collect it from Campus Security (Case #${item.securityCaseId || 'N/A'}).`
+      : `A claim for "${item.title}" was approved. Contact details have been exchanged — please confirm the handover and mark as Resolved.`,
     link:    `/item/${item._id}`
   });
 
@@ -47,7 +51,9 @@ async function approveAndShare({ claim, item, finder, claimantId, actorId, actor
     user:    claimantId,
     type:    'claim_approved',
     title:   'Claim Approved!',
-    message: `Your claim for "${item.title}" was approved. Check your email for the finder's contact details.`,
+    message: isWithSecurity
+      ? `Your claim for "${item.title}" was approved! The item is held by Campus Security (Case #${item.securityCaseId || 'N/A'}). Visit the Security Office with your ID to collect it.`
+      : `Your claim for "${item.title}" was approved. Check your email for the finder's contact details.`,
     link:    `/item/${item._id}`
   });
 
@@ -55,16 +61,20 @@ async function approveAndShare({ claim, item, finder, claimantId, actorId, actor
   await sendEmail({
     email:   finder.email,
     subject: `"${item.title}" has been claimed — CIRS`,
-    message: `Hello ${finder.fullName},\n\nA verified claim for "${item.title}" was approved.\n\nPlease arrange a safe handover on campus, then mark the item as Resolved to close this report.`
+    message: isWithSecurity
+      ? `Hello ${finder.fullName},\n\nA verified claim for "${item.title}" was approved.\n\nSince this item is deposited with Campus Security (Case #${item.securityCaseId || 'N/A'}), the owner has been directed to the Security Office to collect it.`
+      : `Hello ${finder.fullName},\n\nA verified claim for "${item.title}" was approved.\n\nPlease arrange a safe handover on campus, then mark the item as Resolved to close this report.`
   }).catch(err => console.error('[Email] Finder notification failed:', err.message));
 
-  // Email claimant with contact info
+  // Email claimant with contact info or security pickup instructions
   const claimantUser = await User.findById(claimantId).select('email fullName').lean();
   if (claimantUser?.email) {
     await sendEmail({
       email:   claimantUser.email,
-      subject: `Claim Approved! Contact details for "${item.title}" — CIRS`,
-      message: `Congratulations ${claimantUser.fullName}!\n\nYour claim for "${item.title}" was APPROVED.\n\nFinder Contact:\nName:  ${finder.fullName}\nEmail: ${finder.email}\nPhone: ${finder.phone || 'Not provided'}\n\nPlease arrange a safe public meeting on campus to collect your item.`
+      subject: `Claim Approved! ${isWithSecurity ? 'Campus Security Pickup' : 'Contact details'} for "${item.title}" — CIRS`,
+      message: isWithSecurity
+        ? `Congratulations ${claimantUser.fullName}!\n\nYour claim for "${item.title}" was APPROVED.\n\n🏛 ITEM LOCATION: Campus Security Office\n📋 CASE ID: ${item.securityCaseId || 'CIRS-SEC'}\n\nPlease visit the Campus Security Office with a valid student/staff ID and quote the Case ID above to collect your item.`
+        : `Congratulations ${claimantUser.fullName}!\n\nYour claim for "${item.title}" was APPROVED.\n\nFinder Contact:\nName:  ${finder.fullName}\nEmail: ${finder.email}\nPhone: ${finder.phone || 'Not provided'}\n\nPlease arrange a safe public meeting on campus to collect your item.`
     }).catch(err => console.error('[Email] Claimant notification failed:', err.message));
   }
 
@@ -90,9 +100,19 @@ exports.submitClaim = async (req, res, next) => {
       throw new Error("Claims can only be submitted for items that are currently 'found'.");
     }
 
-    if (!item.verificationQuestions || item.verificationQuestions.length === 0) {
-      res.status(400);
-      throw new Error('This item has no verification questions. Contact the finder directly.');
+    const isPhysicalOnly = (Item.PHYSICAL_ONLY_CATEGORIES || ['Devices']).includes(item.category);
+
+    if (isPhysicalOnly) {
+      // Hard gate: device must be deposited at campus security office before claims can be submitted
+      if (item.custodyStatus !== 'DEPOSITED_WITH_SECURITY') {
+        res.status(400);
+        throw new Error('This device must first be deposited at the Campus Security Office before claims can be submitted. Please check back once the finder has deposited it.');
+      }
+    } else {
+      if (!item.verificationQuestions || item.verificationQuestions.length === 0) {
+        res.status(400);
+        throw new Error('This item has no verification questions. Contact the finder directly.');
+      }
     }
 
     // Block new submissions if an approved claim already exists awaiting handover (Option A)
@@ -125,58 +145,89 @@ exports.submitClaim = async (req, res, next) => {
       throw new Error('You have used all 2 attempts for this item and cannot resubmit.');
     }
 
-    // ── Grade answers ─────────────────────────────────────────────────────────
-    const { answers: submitted, locationHint, reportedTime } = req.body;
+    // ── Scoring & routing ──────────────────────────────────────────────────────
+    const { answers: submitted, locationHint, reportedTime, supplementaryEvidenceUrl, physicalVerificationNote, note } = req.body;
 
-    const gradeResult = gradeAnswers(submitted || [], item.verificationQuestions || []);
-    const { gradedAnswers, score, totalQuestions } = gradeResult;
+    let gradedAnswers = [];
+    let score = 0;
+    let totalQuestions = 0;
+    let compositeScore = 0;
+    let fraudFlags = [];
+    let isFlagged = false;
+    let route = 'PHYSICAL_VERIFICATION';
+    let status = 'awaiting_physical_verification';
+    let reason = 'In-person device verification required at Campus Security Office';
 
-    // ── Composite score (answers + location + time + detail quality) ──────────
-    const compositeScore = calculateCompositeScore(
-      gradeResult,
-      item,
-      locationHint || '',
-      reportedTime || null
-    );
+    if (!isPhysicalOnly) {
+      const gradeResult = gradeAnswers(submitted || [], item.verificationQuestions || []);
+      gradedAnswers = gradeResult.gradedAnswers;
+      score = gradeResult.score;
+      totalQuestions = gradeResult.totalQuestions;
 
-    // ── Fraud detection ────────────────────────────────────────────────────────
-    const fraudFlags = await detectFraud(
-      req.user.id,
-      item,
-      submitted || [],
-      locationHint || ''
-    );
-    const isFlagged = fraudFlags.length > 0;
+      compositeScore = calculateCompositeScore(
+        gradeResult,
+        item,
+        locationHint || '',
+        reportedTime || null
+      );
 
-    // ── Risk-based routing ────────────────────────────────────────────────────
-    const { route, status, reason } = routeClaim(item, compositeScore, fraudFlags);
+      fraudFlags = await detectFraud(
+        req.user.id,
+        item,
+        submitted || [],
+        locationHint || ''
+      );
+      isFlagged = fraudFlags.length > 0;
+
+      const competingClaimsCount = await Claim.countDocuments({
+        item: item._id,
+        claimant: { $ne: req.user.id },
+        status: { $in: ['pending', 'under_review'] }
+      });
+
+      const routed = routeClaim(item, compositeScore, fraudFlags, competingClaimsCount);
+      route = routed.route;
+      status = routed.status;
+      reason = routed.reason;
+    }
 
     // isPassing is now only used as supplementary info — routing decides status
     const passed = status === 'approved';
 
-    // ── Create the claim ───────────────────────────────────────────────────────
-    const claim = await Claim.create({
-      item:           item._id,
-      claimant:       req.user.id,
-      answers:        gradedAnswers,
-      score,
-      totalQuestions,
-      compositeScore,
-      passed,
-      locationHint:   locationHint || '',
-      reportedTime:   reportedTime ? new Date(reportedTime) : undefined,
-      status,
-      riskRoute:      route,
-      routeReason:    reason,
-      fraudFlags,
-      isFlagged,
-      attemptNumber:  totalAttempts + 1,   // 1 = first attempt, 2 = resubmission
-      auditLog: [{
-        action:    passed ? 'auto_approved' : 'submitted',
-        actorRole: 'system',
-        note:      reason
-      }]
-    });
+    // ── Create the claim (with duplicate key protection against race conditions)
+    let claim;
+    try {
+      claim = await Claim.create({
+        item:           item._id,
+        claimant:       req.user.id,
+        answers:        gradedAnswers,
+        score,
+        totalQuestions,
+        compositeScore,
+        passed,
+        locationHint:   locationHint || '',
+        reportedTime:   reportedTime ? new Date(reportedTime) : undefined,
+        supplementaryEvidenceUrl: supplementaryEvidenceUrl || null,
+        physicalVerificationNote: physicalVerificationNote || note || null,
+        status,
+        riskRoute:      route,
+        routeReason:    reason,
+        fraudFlags,
+        isFlagged,
+        attemptNumber:  totalAttempts + 1,   // 1 = first attempt, 2 = resubmission
+        auditLog: [{
+          action:    passed ? 'auto_approved' : status === 'awaiting_physical_verification' ? 'physical_verification_initiated' : 'submitted',
+          actorRole: 'system',
+          note:      reason
+        }]
+      });
+    } catch (createErr) {
+      if (createErr.code === 11000) {
+        res.status(400);
+        throw new Error('You already have an active claim for this item.');
+      }
+      throw createErr;
+    }
 
     // ── Build response ─────────────────────────────────────────────────────────
     const responseData = {
@@ -203,6 +254,29 @@ exports.submitClaim = async (req, res, next) => {
         actorRole:  'system',
         reviewNote: reason
       });
+    }
+    // ── PHYSICAL_VERIFICATION: notify claimant & admins ────────────────────────
+    else if (route === 'PHYSICAL_VERIFICATION') {
+      await Notification.create({
+        user:    req.user.id,
+        type:    'claim_submitted',
+        title:   'Physical Verification Initiated',
+        message: `Your claim for "${item.title}" is awaiting physical verification at the Campus Security Office (Case #${item.securityCaseId || 'N/A'}).`,
+        link:    `/item/${item._id}`
+      });
+
+      const admins = await User.find({ role: 'admin' }).select('_id').lean();
+      if (admins.length > 0) {
+        await Notification.insertMany(
+          admins.map(admin => ({
+            user:    admin._id,
+            type:    'claim_submitted',
+            title:   'Device claim awaiting in-person verification',
+            message: `A student has registered a claim for device "${item.title}" (Case #${item.securityCaseId || 'N/A'}).`,
+            link:    `/item/${item._id}`
+          }))
+        );
+      }
     }
     // ── FINDER_REVIEW: notify finder to review this claim ─────────────────────
     else if (route === 'FINDER_REVIEW') {
@@ -274,7 +348,7 @@ exports.getItemClaims = async (req, res, next) => {
 
     const claims = await Claim.find({ item: req.params.itemId })
       .populate('claimant', 'fullName email profileImage phone')
-      .sort({ createdAt: -1 });
+      .sort({ compositeScore: -1, createdAt: -1 });
 
     res.status(200).json({ success: true, data: claims });
   } catch (err) {
@@ -556,6 +630,97 @@ exports.disputeClaim = async (req, res, next) => {
       message: `The claimant disputed your rejection for "${claim.item.title}". An admin will review the case.`,
       link:    `/item/${claim.item._id}`
     });
+
+    res.status(200).json({ success: true, data: claim });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// @desc    Flag a wrongly-approved claim before physical handover (Finder or competing user)
+// @route   POST /api/claims/:id/flag-wrong-approval
+// @access  Private
+// ─────────────────────────────────────────────────────────────────────────────
+exports.flagWrongApproval = async (req, res, next) => {
+  try {
+    const { reason } = req.body;
+    if (!reason) {
+      res.status(400);
+      throw new Error('Please provide a reason for flagging this approval');
+    }
+
+    const claim = await Claim.findById(req.params.id)
+      .populate('item', 'title postedBy status')
+      .populate('claimant', 'fullName email');
+
+    if (!claim) {
+      res.status(404);
+      throw new Error('Claim not found');
+    }
+
+    if (claim.status !== 'approved') {
+      res.status(400);
+      throw new Error('Only currently approved claims can be flagged for wrong approval');
+    }
+
+    if (claim.item?.status === 'resolved') {
+      res.status(400);
+      throw new Error('This item has already been marked as resolved and handed over.');
+    }
+
+    const isFinder = claim.item?.postedBy?.toString() === req.user.id;
+    const isClaimant = claim.claimant?._id?.toString() === req.user.id;
+
+    // Allowed for: the item's finder OR a different user who believes they are true owner (non-claimant)
+    if (isClaimant && !isFinder) {
+      res.status(403);
+      throw new Error('You cannot flag your own approved claim. Contact an administrator if needed.');
+    }
+
+    const actorRole = isFinder ? 'finder' : (req.user.role === 'admin' ? 'admin' : 'competing_claimant');
+
+    claim.status = 'disputed';
+    claim.riskRoute = 'ADMIN_REVIEW';
+    claim.auditLog.push({
+      action:    'flagged_wrong_approval',
+      actor:     req.user.id,
+      actorRole,
+      note:      reason
+    });
+    await claim.save();
+
+    // Notify admins
+    const admins = await User.find({ role: 'admin' }).select('_id').lean();
+    await Notification.insertMany(
+      admins.map(admin => ({
+        user:    admin._id,
+        type:    'claim_submitted',
+        title:   '⚠️ Approved claim flagged as potential wrong match',
+        message: `A claim approval for "${claim.item.title}" was flagged by a ${actorRole.replace('_', ' ')}. Handover paused for admin mediation. Reason: "${reason}"`,
+        link:    `/item/${claim.item._id}`
+      }))
+    );
+
+    // Notify claimant whose approval is suspended
+    await Notification.create({
+      user:    claim.claimant._id,
+      type:    'claim_submitted',
+      title:   'Claim approval on hold for review',
+      message: `Your approved claim for "${claim.item.title}" has been placed on hold pending admin review. Contact handover is temporarily paused.`,
+      link:    `/item/${claim.item._id}`
+    });
+
+    // Notify finder if flagged by third-party
+    if (!isFinder && claim.item?.postedBy) {
+      await Notification.create({
+        user:    claim.item.postedBy,
+        type:    'claim_submitted',
+        title:   'Claim handover paused',
+        message: `The approved claim for "${claim.item.title}" was flagged by another student claiming ownership. Do NOT hand over the item yet. Admin review is pending.`,
+        link:    `/item/${claim.item._id}`
+      });
+    }
 
     res.status(200).json({ success: true, data: claim });
   } catch (err) {

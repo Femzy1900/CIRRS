@@ -32,16 +32,18 @@ const ClaimSchema = new mongoose.Schema({
   compositeScore: { type: Number, default: 0 },    // 0–100
   passed:         { type: Boolean, default: false }, // true only when status === 'approved'
 
-  // ── Optional context hints (improve composite score) ───────────────────────
+  // ── Optional context hints & supplementary evidence ───────────────────────
   locationHint: { type: String, default: '' },   // "Where did you lose it?"
   reportedTime: { type: Date },                   // "When did you lose it?"
+  supplementaryEvidenceUrl: { type: String, default: null }, // photo proof, receipt, serial # photo
+  physicalVerificationNote: { type: String, default: null }, // claimant note for in-person device verification
 
   // ── Status (state machine) ──────────────────────────────────────────────────
-  // pending → under_review → approved / rejected / escalated / disputed
+  // pending → under_review → approved / rejected / escalated / disputed / awaiting_physical_verification
   // withdrawn: claimant retracted a pending claim to resubmit (max 1 withdrawal allowed)
   status: {
     type: String,
-    enum: ['pending', 'under_review', 'approved', 'rejected', 'disputed', 'escalated', 'withdrawn'],
+    enum: ['pending', 'under_review', 'approved', 'rejected', 'disputed', 'escalated', 'withdrawn', 'awaiting_physical_verification'],
     default: 'pending'
   },
 
@@ -50,7 +52,7 @@ const ClaimSchema = new mongoose.Schema({
   attemptNumber: { type: Number, default: 1 },
 
   // ── Risk routing decision ───────────────────────────────────────────────────
-  riskRoute:   { type: String, enum: ['AUTO', 'FINDER_REVIEW', 'ADMIN_REVIEW'] },
+  riskRoute:   { type: String, enum: ['AUTO', 'FINDER_REVIEW', 'ADMIN_REVIEW', 'PHYSICAL_VERIFICATION'] },
   routeReason: { type: String },
 
   // ── Fraud detection ────────────────────────────────────────────────────────
@@ -66,8 +68,10 @@ const ClaimSchema = new mongoose.Schema({
   createdAt: { type: Date, default: Date.now }
 });
 
-// Index for efficient lookups — uniqueness enforced in application code
-// (allows multiple rows per pair to support withdrawal + resubmission)
-ClaimSchema.index({ item: 1, claimant: 1 });
+// Partial unique index: only one active (non-withdrawn) claim per user per item
+ClaimSchema.index(
+  { item: 1, claimant: 1 },
+  { unique: true, partialFilterExpression: { status: { $ne: 'withdrawn' } } }
+);
 
 module.exports = mongoose.model('Claim', ClaimSchema);

@@ -92,14 +92,17 @@ function answersMatch(provided, correct) {
  */
 function gradeAnswers(submittedAnswers, correctQuestions) {
   let score = 0;
+  let maxPossibleScore = 0;
   const gradedAnswers = (submittedAnswers || []).map(ans => {
     const vq = correctQuestions.find(q => q.question === ans.question);
     if (!vq) return { ...ans, isCorrect: false };
+    const w = vq.weight || 1;
+    maxPossibleScore += w;
     const correct = answersMatch(ans.providedAnswer, vq.answer);
-    if (correct) score++;
+    if (correct) score += w;
     return { ...ans, isCorrect: correct };
   });
-  return { gradedAnswers, score, totalQuestions: correctQuestions.length };
+  return { gradedAnswers, score, maxPossibleScore, totalQuestions: correctQuestions.length };
 }
 
 /**
@@ -168,16 +171,17 @@ function detailQualityScore(gradedAnswers) {
 /**
  * Calculate a weighted composite score (0–100) for a claim.
  *
- * @param {Object} gradeResult  - { score, totalQuestions, gradedAnswers }
+ * @param {Object} gradeResult  - { score, totalQuestions, gradedAnswers, maxPossibleScore }
  * @param {Object} item         - Mongoose Item doc (needs .location, .date)
  * @param {string} locationHint - Optional hint from claimant
  * @param {Date}   reportedTime - Optional time from claimant
  * @returns {number} 0–100
  */
 function calculateCompositeScore(gradeResult, item, locationHint, reportedTime) {
-  const { score, totalQuestions, gradedAnswers } = gradeResult;
+  const { score, totalQuestions, gradedAnswers, maxPossibleScore } = gradeResult;
 
-  const answerScore  = totalQuestions > 0 ? (score / totalQuestions) * 100 : 0;
+  const maxScore = maxPossibleScore || totalQuestions || 1;
+  const answerScore  = Math.min(100, (score / maxScore) * 100);
   const locScore     = locationSimilarity(locationHint, item.location);
   const timeScore    = timeProximityScore(reportedTime, item.date);
   const detailScore  = detailQualityScore(gradedAnswers);

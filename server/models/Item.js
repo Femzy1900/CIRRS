@@ -2,8 +2,30 @@ const mongoose = require('mongoose');
 
 const VerificationQuestionSchema = new mongoose.Schema({
   question: { type: String, required: true },
-  answer: { type: String, required: true }
+  answer: { type: String, required: true },
+  weight: { type: Number, enum: [1, 2, 3], default: 1 }
 }, { _id: false });
+
+const CATEGORIES = [
+  'Devices',
+  'Money',
+  'Cards',
+  'Documents',
+  'Keys',
+  'Bags',
+  'Wallets & Purses',
+  'Jewelry & Accessories',
+  'Eyewear',
+  'Clothing & Footwear',
+  'Water Bottles & Flasks',
+  'Umbrellas',
+  'Books & Stationery',
+  'Sports Equipment',
+  'Personal Effects',
+  'Other'
+];
+
+const PHYSICAL_ONLY_CATEGORIES = ['Devices'];
 
 const ItemSchema = new mongoose.Schema({
   title: {
@@ -20,7 +42,7 @@ const ItemSchema = new mongoose.Schema({
   category: {
     type: String,
     required: [true, 'Please select a category'],
-    enum: ['Electronics', 'Documents', 'Personal Effects', 'Keys', 'Bags', 'Money', 'Cards', 'Other']
+    enum: [...CATEGORIES, 'Electronics'] // retain 'Electronics' for backward-compatibility with existing records
   },
   location: {
     type: String,
@@ -55,6 +77,25 @@ const ItemSchema = new mongoose.Schema({
     type: String,
     enum: ['LOW', 'MEDIUM', 'HIGH'],
     default: 'LOW'
+  },
+  // Campus Security Custody Flow
+  custodyStatus: {
+    type: String,
+    enum: ['WITH_FINDER', 'DEPOSITED_WITH_SECURITY', 'RELEASED_BY_SECURITY'],
+    default: 'WITH_FINDER'
+  },
+  securityCaseId: {
+    type: String,
+    default: null
+  },
+  depositedAt: {
+    type: Date,
+    default: null
+  },
+  handoverDetails: {
+    handedOverAt: { type: Date, default: null },
+    handedOverBy: { type: mongoose.Schema.ObjectId, ref: 'User', default: null },
+    claimantNotes: { type: String, default: null }
   },
   verificationQuestions: [VerificationQuestionSchema],
   contactInfo: {
@@ -94,9 +135,9 @@ ItemSchema.pre('findOneAndUpdate', function () {
 });
 
 function getRiskLevel(category) {
-  const HIGH_RISK = ['Money', 'Cards'];
-  const MED_RISK  = ['Electronics', 'Documents', 'Bags'];
-  if (HIGH_RISK.includes(category))  return 'HIGH';
+  const HIGH_RISK = ['Devices', 'Money', 'Cards', 'Documents', 'Wallets & Purses', 'Jewelry & Accessories', 'Electronics'];
+  const MED_RISK  = ['Bags', 'Eyewear'];
+  if (HIGH_RISK.includes(category)) return 'HIGH';
   if (MED_RISK.includes(category))  return 'MEDIUM';
   return 'LOW';
 }
@@ -108,4 +149,8 @@ function assignRiskLevel(category, doc) {
 // Text index to enable search and matching algorithms
 ItemSchema.index({ title: 'text', description: 'text' });
 
-module.exports = mongoose.model('Item', ItemSchema);
+const Item = mongoose.model('Item', ItemSchema);
+Item.CATEGORIES = CATEGORIES;
+Item.PHYSICAL_ONLY_CATEGORIES = PHYSICAL_ONLY_CATEGORIES;
+
+module.exports = Item;

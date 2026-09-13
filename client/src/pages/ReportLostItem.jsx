@@ -13,7 +13,8 @@ import {
   ArrowLeft,
   Info,
   Plus,
-  Upload
+  Upload,
+  ChevronDown
 } from 'lucide-react';
 import { toast } from 'sonner';
 import useItemStore from '../store/useItemStore';
@@ -117,7 +118,7 @@ export default function ReportLostItem() {
                   <Tag className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 group-focus-within:text-brand-gold transition-colors" size={18} />
                   <select
                     {...register('category')}
-                    className="input-field pl-12 appearance-none cursor-pointer"
+                    className="input-field pl-12 pr-10 appearance-none cursor-pointer"
                   >
                     <option value="" className="bg-slate-900">Select category</option>
                     <option value="Electronics" className="bg-slate-900">Electronics</option>
@@ -129,6 +130,7 @@ export default function ReportLostItem() {
                     <option value="Cards" className="bg-slate-900">Cards (ATM / ID)</option>
                     <option value="Other" className="bg-slate-900">Other</option>
                   </select>
+                  <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none" size={16} />
                 </div>
                 {errors.category && <p className="text-[10px] text-rose-500 font-black uppercase tracking-widest px-1">{errors.category.message}</p>}
               </div>

@@ -20,7 +20,8 @@ import {
   Crown,
   Flag,
   ArrowUpCircle,
-  Hourglass
+  Hourglass,
+  ChevronDown
 } from 'lucide-react';
 import Button from '../../components/ui/Button';
 import Badge from '../../components/ui/Badge';
@@ -369,17 +370,20 @@ export default function AdminDashboard() {
               />
             </div>
             
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-3">
               <Filter className="text-brand-gold shrink-0" size={18} />
-              <select
-                value={roleFilter}
-                onChange={(e) => setRoleFilter(e.target.value)}
-                className="bg-[#020617] border border-white/5 focus:border-brand-gold/50 text-slate-300 text-xs px-4 py-3 rounded-2xl outline-none transition-all cursor-pointer font-bold"
-              >
-                <option value="all">All Roles</option>
-                <option value="admin">Admins Only</option>
-                <option value="user">Users Only</option>
-              </select>
+              <div className="relative">
+                <select
+                  value={roleFilter}
+                  onChange={(e) => setRoleFilter(e.target.value)}
+                  className="bg-[#020617] border border-white/5 focus:border-brand-gold/50 text-slate-300 text-xs pl-4 pr-10 py-3 rounded-2xl outline-none transition-all cursor-pointer font-bold appearance-none"
+                >
+                  <option value="all">All Roles</option>
+                  <option value="admin">Admins Only</option>
+                  <option value="user">Users Only</option>
+                </select>
+                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none" size={14} />
+              </div>
             </div>
           </div>
 
@@ -527,9 +531,26 @@ export default function AdminDashboard() {
                       </td>
                       <td className="p-6 text-xs text-slate-300 font-semibold">{item.postedBy?.fullName || item.postedBy?.username || '—'}</td>
                       <td className="p-6">
-                        <Badge variant={item.status === 'found' ? 'success' : 'danger'}>
-                          {item.status}
-                        </Badge>
+                        <div className="flex flex-col items-start gap-1.5">
+                          <Badge variant={item.status === 'found' ? 'success' : 'danger'}>
+                            {item.status}
+                          </Badge>
+                          {item.custodyStatus === 'DEPOSITED_WITH_SECURITY' && (
+                            <span className="px-2 py-0.5 rounded-lg text-[9px] font-black uppercase tracking-wider border bg-blue-500/20 text-blue-300 border-blue-500/30">
+                              🏛 In Security
+                            </span>
+                          )}
+                          {item.custodyStatus === 'RELEASED_BY_SECURITY' && (
+                            <span className="px-2 py-0.5 rounded-lg text-[9px] font-black uppercase tracking-wider border bg-emerald-500/20 text-emerald-300 border-emerald-500/30">
+                              🤝 Handed Over
+                            </span>
+                          )}
+                          {item.status === 'found' && item.custodyStatus !== 'DEPOSITED_WITH_SECURITY' && item.custodyStatus !== 'RELEASED_BY_SECURITY' && (
+                            <span className="px-2 py-0.5 rounded-lg text-[9px] font-black uppercase tracking-wider border bg-slate-500/10 text-slate-400 border-slate-500/20">
+                              👤 With Finder
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td className="p-6 text-right">
                         <div className="flex items-center justify-end gap-3">

@@ -7,11 +7,14 @@ const claimApi = {
    * @param {Array}  answers        - [{question, providedAnswer}]
    * @param {string} [locationHint] - Where claimant says they lost it
    * @param {string} [reportedTime] - ISO string of when they lost it
+   * @param {string} [supplementaryEvidenceUrl] - Image URL of receipt/proof
    */
-  submitClaim: async (itemId, answers, locationHint = '', reportedTime = null) => {
+  submitClaim: async (itemId, answers = [], locationHint = '', reportedTime = null, supplementaryEvidenceUrl = null, physicalVerificationNote = '') => {
     const payload = { answers };
     if (locationHint) payload.locationHint = locationHint;
     if (reportedTime) payload.reportedTime = reportedTime;
+    if (supplementaryEvidenceUrl) payload.supplementaryEvidenceUrl = supplementaryEvidenceUrl;
+    if (physicalVerificationNote) payload.physicalVerificationNote = physicalVerificationNote;
     const response = await axiosInstance.post(`/claims/${itemId}`, payload);
     return response.data;
   },
@@ -62,6 +65,12 @@ const claimApi = {
   /** Dispute a rejected claim (claimant only) */
   disputeClaim: async (claimId, reason) => {
     const response = await axiosInstance.post(`/claims/${claimId}/dispute`, { reason });
+    return response.data;
+  },
+
+  /** Flag an approved claim as potential wrong match before physical handover */
+  flagWrongApproval: async (claimId, reason) => {
+    const response = await axiosInstance.post(`/claims/${claimId}/flag-wrong-approval`, { reason });
     return response.data;
   },
 };

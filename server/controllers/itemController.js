@@ -133,9 +133,10 @@ exports.getItem = async (req, res, next) => {
       throw new Error(`Item not found with id of ${req.params.id}`);
     }
 
-    const hasApprovedClaim = await Claim.exists({ item: item._id, status: 'approved' });
+    const approvedClaim = await Claim.findOne({ item: item._id, status: 'approved' }).select('_id');
     const itemObj = item.toObject();
-    itemObj.hasApprovedClaim = !!hasApprovedClaim;
+    itemObj.hasApprovedClaim = !!approvedClaim;
+    itemObj.approvedClaimId = approvedClaim ? approvedClaim._id : null;
 
     res.status(200).json({ success: true, data: itemObj });
   } catch (err) {
@@ -149,6 +150,14 @@ exports.getItem = async (req, res, next) => {
 exports.createItem = async (req, res, next) => {
   try {
     req.body.postedBy = req.user.id;
+
+    // Auto-generate Security Case ID for high-risk categories
+    if (['Devices', 'Money', 'Cards', 'Documents', 'Wallets & Purses', 'Jewelry & Accessories', 'Electronics'].includes(req.body.category)) {
+      if (!req.body.securityCaseId) {
+        req.body.securityCaseId = `SEC-${Date.now().toString().slice(-6)}`;
+      }
+    }
+
     const item = await Item.create(req.body);
 
     // Populate postedBy so the matching engine and client both get the full user object
@@ -320,6 +329,58 @@ exports.contactItem = async (req, res, next) => {
         email: poster.email,
         phone: poster.phone || null,
       },
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// @desc    Update item custody status (e.g. deposited with campus security)
+// @route   PATCH /api/items/:id/custody
+// @access  Private (Finder or Admin)
+exports.updateCustodyStatus = async (req, res, next) => {
+  try {
+    const item = await Item.findById(req.params.id);
+
+    if (!item) {
+      res.status(404);
+      throw new Error(`Item not found with id of ${req.params.id}`);
+    }
+
+    const isAdmin = req.user.role === 'admin' || req.user.isSuperAdmin;
+
+    if (!isAdmin) {
+      res.status(403);
+      throw new Error('Only campus security administrators can update custody or record item handover.');
+    }
+
+    const { custodyStatus, securityCaseId, claimantNotes } = req.body;
+
+    if (custodyStatus) {
+      item.custodyStatus = custodyStatus;
+      if (custodyStatus === 'DEPOSITED_WITH_SECURITY') {
+        item.depositedAt = new Date();
+      } else if (custodyStatus === 'RELEASED_BY_SECURITY') {
+        item.status = 'resolved';
+        item.handoverDetails = {
+          handedOverAt: new Date(),
+          handedOverBy: req.user._id || req.user.id,
+          claimantNotes: claimantNotes || 'Handed over in person after physical verification at Security Office.'
+        };
+      }
+    }
+
+    if (securityCaseId) {
+      item.securityCaseId = securityCaseId;
+    } else if (custodyStatus === 'DEPOSITED_WITH_SECURITY' && !item.securityCaseId) {
+      item.securityCaseId = `SEC-${Date.now().toString().slice(-6)}`;
+    }
+
+    await item.save();
+
+    res.status(200).json({
+      success: true,
+      data: item
     });
   } catch (err) {
     next(err);
